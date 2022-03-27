@@ -43,6 +43,10 @@ public class DefaultScopeDefine {
      * @since 9.0.0
      */
     public static final int UNKNOWN = 0;
+    /**
+     * @since Deprecated from 9.0.0
+     */
+    @Deprecated
     public static final int ALL = 0;
     public static final int SERVICE = 1;
     public static final int SERVICE_INSTANCE = 2;
@@ -93,6 +97,9 @@ public class DefaultScopeDefine {
     public static final int SERVICE_INSTANCE_JVM_CLASS = 44;
 
     public static final int PROCESS = 45;
+    public static final int EBPF_PROFILING_TASK = 46;
+    public static final int EBPF_PROFILING_SCHEDULE = 47;
+    public static final int EBPF_PROFILING_DATA = 48;
 
     /**
      * Catalog of scope, the metrics processor could use this to group all generated metrics by oal rt.

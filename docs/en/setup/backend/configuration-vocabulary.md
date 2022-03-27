@@ -10,7 +10,6 @@ core|default|role|Option values: `Mixed/Receiver/Aggregator`. **Receiver** mode 
 | - | - | restMinThreads| Minimum thread number of RESTful services. | SW_CORE_REST_JETTY_MIN_THREADS|1|
 | - | - | restMaxThreads| Maximum thread number of RESTful services. | SW_CORE_REST_JETTY_MAX_THREADS|200|
 | - | - | restIdleTimeOut| Connector idle timeout of RESTful services (in milliseconds). | SW_CORE_REST_JETTY_IDLE_TIMEOUT|30000|
-| - | - | restAcceptorPriorityDelta| Thread priority delta to give to acceptor threads of RESTful services. | SW_CORE_REST_JETTY_DELTA|0|
 | - | - | restAcceptQueueSize| ServerSocketChannel Backlog of RESTful services. | SW_CORE_REST_JETTY_QUEUE_SIZE|0|
 | - | - | httpMaxRequestHeaderSize| Maximum request header size accepted. | SW_CORE_HTTP_MAX_REQUEST_HEADER_SIZE|8192|
 | - | - | gRPCHost| Binding IP of gRPC services, including gRPC data report and internal communication among OAP nodes. |SW_CORE_GRPC_HOST|0.0.0.0|
@@ -47,6 +46,9 @@ core|default|role|Option values: `Mixed/Receiver/Aggregator`. **Receiver** mode 
 | - | - | maxSizeOfAnalyzeProfileSnapshot| The maximum number of snapshots analyzed by the OAP. | - | 12000 |
 | - | - | prepareThreads| The number of threads used to prepare metrics data to the storage. | SW_CORE_PREPARE_THREADS | 2 |
 | - | - | enableEndpointNameGroupingByOpenapi | Automatically groups endpoints by the given OpenAPI definitions. | SW_CORE_ENABLE_ENDPOINT_NAME_GROUPING_BY_OPAENAPI | true |
+| - | - | maxDurationOfAnalyzeEBPFProfiling| The maximum duration(in minute) of analyze the eBPF profiling data. | - | 10 |
+| - | - | maxDurationOfQueryEBPFProfilingData| The maximum duration(in second) of query the eBPF profiling data from database. | - | 30 |
+| - | - | maxThreadCountOfQueryEBPFProfilingData| The maximum thread count of query the eBPF profiling data from database. | - | System CPU core size |
 |cluster|standalone| - | Standalone is not suitable for running on a single node running. No configuration available. | - | - |
 | - | zookeeper|namespace| The namespace, represented by root path, isolates the configurations in Zookeeper.|SW_NAMESPACE| `/`, root path|
 | - | - | hostPort| Hosts and ports of Zookeeper Cluster. |SW_CLUSTER_ZK_HOST_PORT| localhost:2181|
@@ -106,7 +108,8 @@ core|default|role|Option values: `Mixed/Receiver/Aggregator`. **Receiver** mode 
 | - | - | flushInterval| Period of flush (in seconds). Does not matter whether `bulkActions` is reached or not. INT(flushInterval * 2/3) is used for index refresh period. | SW_STORAGE_ES_FLUSH_INTERVAL | 15 (index refresh period = 10)|
 | - | - | concurrentRequests| The number of concurrent requests allowed to be executed. | SW_STORAGE_ES_CONCURRENT_REQUESTS| 2 |
 | - | - | resultWindowMaxSize | The maximum size of dataset when the OAP loads cache, such as network aliases. | SW_STORAGE_ES_QUERY_MAX_WINDOW_SIZE | 10000|
-| - | - | metadataQueryMaxSize | The maximum size of metadata per query. | SW_STORAGE_ES_QUERY_MAX_SIZE | 5000 |
+| - | - | metadataQueryMaxSize | The maximum size of metadata per query. | SW_STORAGE_ES_QUERY_MAX_SIZE | 10000 |
+| - | - | scrollingBatchSize | The batch size of metadata per iteration when `metadataQueryMaxSize` or `resultWindowMaxSize` is too large to be retrieved in a single query. | SW_STORAGE_ES_SCROLLING_BATCH_SIZE | 5000 |
 | - | - | segmentQueryMaxSize | The maximum size of trace segments per query. | SW_STORAGE_ES_QUERY_SEGMENT_SIZE | 200|
 | - | - | profileTaskQueryMaxSize | The maximum size of profile task per query. | SW_STORAGE_ES_QUERY_PROFILE_TASK_SIZE | 200|
 | - | - | advanced | All settings of ElasticSearch index creation. The value should be in JSON format. | SW_STORAGE_ES_ADVANCED | - |
@@ -166,7 +169,6 @@ core|default|role|Option values: `Mixed/Receiver/Aggregator`. **Receiver** mode 
 | - | - | restMinThreads| Minimum thread number of RESTful services. | SW_RECEIVER_SHARING_JETTY_MIN_THREADS|1|
 | - | - | restMaxThreads| Maximum thread number of RESTful services. | SW_RECEIVER_SHARING_JETTY_MAX_THREADS|200|
 | - | - | restIdleTimeOut| Connector idle timeout of RESTful services (in milliseconds). | SW_RECEIVER_SHARING_JETTY_IDLE_TIMEOUT|30000|
-| - | - | restAcceptorPriorityDelta| Thread priority delta to give to acceptor threads of RESTful services. | SW_RECEIVER_SHARING_JETTY_DELTA|0|
 | - | - | restAcceptQueueSize| ServerSocketChannel backlog of RESTful services. | SW_RECEIVER_SHARING_JETTY_QUEUE_SIZE|0|
 | - | - | httpMaxRequestHeaderSize| Maximum request header size accepted. | SW_RECEIVER_SHARING_HTTP_MAX_REQUEST_HEADER_SIZE|8192|
 | - | - | gRPCHost| Binding IP of gRPC services. Services include gRPC data report and internal communication among OAP nodes. | SW_RECEIVER_GRPC_HOST | 0.0.0.0. Not Activated |
@@ -230,8 +232,8 @@ core|default|role|Option values: `Mixed/Receiver/Aggregator`. **Receiver** mode 
 | receiver-browser | default | gRPC services that accept browser performance data and error log. | - | - | - |
 | - | - | sampleRate | Sampling rate for receiving trace. Precise to 1/10000. 10000 means sampling rate of 100% by default. | SW_RECEIVER_BROWSER_SAMPLE_RATE | 10000 |
 | query | graphql | - | GraphQL query implementation. | - |
-| - | - | path | Root path of GraphQL query and mutation. | SW_QUERY_GRAPHQL_PATH | /graphql|
 | - | - | enableLogTestTool | Enable the log testing API to test the LAL. **NOTE**: This API evaluates untrusted code on the OAP server. A malicious script can do significant damage (steal keys and secrets, remove files and directories, install malware, etc). As such, please enable this API only when you completely trust your users. | SW_QUERY_GRAPHQL_ENABLE_LOG_TEST_TOOL | false |
+| - | - | maxQueryComplexity | Maximum complexity allowed for the GraphQL query that can be used to abort a query if the total number of data fields queried exceeds the defined threshold. | SW_QUERY_MAX_QUERY_COMPLEXITY | 100 |
 | alarm | default | - | Read [alarm doc](backend-alarm.md) for more details. | - |
 | telemetry | - | - | Read [telemetry doc](backend-telemetry.md) for more details. | - |
 | - | none| - | No op implementation. | - |
