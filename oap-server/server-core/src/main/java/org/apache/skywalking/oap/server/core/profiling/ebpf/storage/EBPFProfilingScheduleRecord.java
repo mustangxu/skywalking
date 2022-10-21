@@ -18,8 +18,6 @@
 
 package org.apache.skywalking.oap.server.core.profiling.ebpf.storage;
 
-import com.google.common.hash.Hashing;
-import com.linecorp.armeria.internal.shaded.guava.base.Charsets;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,7 +26,9 @@ import org.apache.skywalking.oap.server.core.analysis.Stream;
 import org.apache.skywalking.oap.server.core.analysis.metrics.Metrics;
 import org.apache.skywalking.oap.server.core.analysis.worker.MetricsStreamProcessor;
 import org.apache.skywalking.oap.server.core.remote.grpc.proto.RemoteData;
+import org.apache.skywalking.oap.server.core.storage.ShardingAlgorithm;
 import org.apache.skywalking.oap.server.core.storage.annotation.Column;
+import org.apache.skywalking.oap.server.core.storage.annotation.SQLDatabase;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Entity;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Storage;
 import org.apache.skywalking.oap.server.core.storage.type.StorageBuilder;
@@ -50,6 +50,7 @@ import static org.apache.skywalking.oap.server.core.source.DefaultScopeDefine.EB
         "processId",
         "startTime",
 })
+@SQLDatabase.Sharding(shardingAlgorithm = ShardingAlgorithm.NO_SHARDING)
 public class EBPFProfilingScheduleRecord extends Metrics {
 
     public static final String INDEX_NAME = "ebpf_profiling_schedule";
@@ -57,6 +58,7 @@ public class EBPFProfilingScheduleRecord extends Metrics {
     public static final String PROCESS_ID = "process_id";
     public static final String START_TIME = "start_time";
     public static final String END_TIME = "end_time";
+    public static final String EBPF_PROFILING_SCHEDULE_ID = "ebpf_profiling_schedule_id";
 
     @Column(columnName = TASK_ID, length = 600)
     private String taskId;
@@ -66,6 +68,8 @@ public class EBPFProfilingScheduleRecord extends Metrics {
     private long startTime;
     @Column(columnName = END_TIME)
     private long endTime;
+    @Column(columnName = EBPF_PROFILING_SCHEDULE_ID)
+    private String scheduleId;
 
     @Override
     public boolean combine(Metrics metrics) {
@@ -92,15 +96,14 @@ public class EBPFProfilingScheduleRecord extends Metrics {
 
     @Override
     protected String id0() {
-        return Hashing.sha256().newHasher()
-                .putString(String.format("%s_%s_%d", taskId, processId, startTime), Charsets.UTF_8)
-                .hash().toString();
+        return scheduleId;
     }
 
     @Override
     public void deserialize(RemoteData remoteData) {
         setTaskId(remoteData.getDataStrings(0));
         setProcessId(remoteData.getDataStrings(1));
+        setScheduleId(remoteData.getDataStrings(2));
         setStartTime(remoteData.getDataLongs(0));
         setEndTime(remoteData.getDataLongs(1));
         setTimeBucket(remoteData.getDataLongs(2));
@@ -111,6 +114,7 @@ public class EBPFProfilingScheduleRecord extends Metrics {
         final RemoteData.Builder builder = RemoteData.newBuilder();
         builder.addDataStrings(taskId);
         builder.addDataStrings(processId);
+        builder.addDataStrings(scheduleId);
         builder.addDataLongs(startTime);
         builder.addDataLongs(endTime);
         builder.addDataLongs(getTimeBucket());
@@ -129,6 +133,7 @@ public class EBPFProfilingScheduleRecord extends Metrics {
             final EBPFProfilingScheduleRecord executeTraffic = new EBPFProfilingScheduleRecord();
             executeTraffic.setTaskId((String) converter.get(TASK_ID));
             executeTraffic.setProcessId((String) converter.get(PROCESS_ID));
+            executeTraffic.setScheduleId((String) converter.get(EBPF_PROFILING_SCHEDULE_ID));
             executeTraffic.setStartTime(((Number) converter.get(START_TIME)).longValue());
             executeTraffic.setEndTime(((Number) converter.get(END_TIME)).longValue());
             executeTraffic.setTimeBucket(((Number) converter.get(TIME_BUCKET)).longValue());
@@ -139,6 +144,7 @@ public class EBPFProfilingScheduleRecord extends Metrics {
         public void entity2Storage(final EBPFProfilingScheduleRecord storageData, final Convert2Storage converter) {
             converter.accept(TASK_ID, storageData.getTaskId());
             converter.accept(PROCESS_ID, storageData.getProcessId());
+            converter.accept(EBPF_PROFILING_SCHEDULE_ID, storageData.getScheduleId());
             converter.accept(START_TIME, storageData.getStartTime());
             converter.accept(END_TIME, storageData.getEndTime());
             converter.accept(TIME_BUCKET, storageData.getTimeBucket());

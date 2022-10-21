@@ -21,12 +21,11 @@ package org.apache.skywalking.oap.server.core.analysis;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.skywalking.oap.server.core.UnexpectedException;
 
 /**
  * Layer represents an abstract framework in computer science, such as Operating System(OS_LINUX layer), Kubernetes(k8s
- * layer). This kind of layer would be owners of different services/instances detected from different technology.
+ * layer). This kind of layer would be owners of different services detected from different technology.
  */
 public enum Layer {
     /**
@@ -117,7 +116,27 @@ public enum Layer {
     /**
      * Kubernetes service
      */
-    K8S_SERVICE(17, true);
+    K8S_SERVICE(17, true),
+
+    /**
+     * MySQL Server, also known as mysqld, is a single multithreaded program that does most of the work in a MySQL installation. 
+     */
+    MYSQL(18, true),
+
+    /**
+     * Cache conjectured by client side plugin(eg. skywalking-java -> JedisPlugin LettucePlugin)
+     */
+    VIRTUAL_CACHE(19, false),
+
+    /**
+     * PostgreSQL is an advanced, enterprise-class, and open-source relational database system.
+     */
+    POSTGRESQL(20, true),
+
+    /**
+     * Apache APISIX is an open source, dynamic, scalable, and high-performance cloud native API gateway.
+     */
+    APISIX(21, true);
 
     private final int value;
     /**
@@ -126,9 +145,13 @@ public enum Layer {
      */
     private final boolean isNormal;
     private static final Map<Integer, Layer> DICTIONARY = new HashMap<>();
+    private static final Map<String, Layer> DICTIONARY_NAME = new HashMap<>();
 
     static {
-        Arrays.stream(Layer.values()).collect(Collectors.toMap(Layer::value, layer -> layer)).forEach(DICTIONARY::put);
+        Arrays.stream(Layer.values()).forEach(l -> {
+            DICTIONARY.put(l.value, l);
+            DICTIONARY_NAME.put(l.name(), l);
+        });
     }
 
     Layer(int value, boolean isNormal) {
@@ -144,6 +167,14 @@ public enum Layer {
         Layer layer = DICTIONARY.get(value);
         if (layer == null) {
             throw new UnexpectedException("Unknown Layer value");
+        }
+        return layer;
+    }
+
+    public static Layer nameOf(String name) {
+        Layer layer = DICTIONARY_NAME.get(name);
+        if (layer == null) {
+            throw new UnexpectedException("Unknown Layer name");
         }
         return layer;
     }

@@ -18,14 +18,13 @@
 
 package org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao;
 
+import com.google.gson.Gson;
 import lombok.AllArgsConstructor;
 import org.apache.skywalking.oap.server.core.analysis.IDManager;
-import org.apache.skywalking.oap.server.core.query.type.EBPFProfilingProcessFinderType;
 import org.apache.skywalking.oap.server.core.profiling.ebpf.storage.EBPFProfilingTargetType;
 import org.apache.skywalking.oap.server.core.profiling.ebpf.storage.EBPFProfilingTaskRecord;
 import org.apache.skywalking.oap.server.core.profiling.ebpf.storage.EBPFProfilingTriggerType;
 import org.apache.skywalking.oap.server.core.query.type.EBPFProfilingTask;
-import org.apache.skywalking.oap.server.core.storage.profiling.ebpf.EBPFProfilingProcessFinder;
 import org.apache.skywalking.oap.server.core.storage.profiling.ebpf.IEBPFProfilingTaskDAO;
 import org.apache.skywalking.oap.server.library.client.jdbc.hikaricp.JDBCHikariCPClient;
 import org.apache.skywalking.oap.server.library.util.CollectionUtils;
@@ -36,47 +35,31 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @AllArgsConstructor
 public class H2EBPFProfilingTaskDAO implements IEBPFProfilingTaskDAO {
+    private static final Gson GSON = new Gson();
     private JDBCHikariCPClient h2Client;
 
     @Override
-    public List<EBPFProfilingTask> queryTasks(EBPFProfilingProcessFinder finder, EBPFProfilingTargetType targetType, long taskStartTime, long latestUpdateTime) throws IOException {
+    public List<EBPFProfilingTask> queryTasksByServices(List<String> serviceIdList, long taskStartTime, long latestUpdateTime) throws IOException {
         final StringBuilder sql = new StringBuilder();
-        List<Object> condition = new ArrayList<>(7);
+        List<Object> condition = new ArrayList<>();
         sql.append("select * from ").append(EBPFProfilingTaskRecord.INDEX_NAME);
 
         StringBuilder conditionSql = new StringBuilder();
 
-        if (finder.getFinderType() != null) {
-            appendCondition(conditionSql, condition,
-                    EBPFProfilingTaskRecord.PROCESS_FIND_TYPE, finder.getFinderType().value());
-        }
-        if (StringUtil.isNotEmpty(finder.getServiceId())) {
-            appendCondition(conditionSql, condition,
-                    EBPFProfilingTaskRecord.SERVICE_ID, finder.getServiceId());
-        }
-        if (StringUtil.isNotEmpty(finder.getInstanceId())) {
-            appendCondition(conditionSql, condition,
-                    EBPFProfilingTaskRecord.INSTANCE_ID, finder.getInstanceId());
-        }
-        if (CollectionUtils.isNotEmpty(finder.getProcessIdList())) {
-            appendListCondition(conditionSql, condition,
-                    EBPFProfilingTaskRecord.PROCESS_ID, finder.getProcessIdList());
-        }
-        if (targetType != null) {
-            appendCondition(conditionSql, condition,
-                    EBPFProfilingTaskRecord.TARGET_TYPE, targetType.value());
-        }
+        appendListCondition(conditionSql, condition, EBPFProfilingTaskRecord.SERVICE_ID, serviceIdList);
         if (taskStartTime > 0) {
             appendCondition(conditionSql, condition,
-                    EBPFProfilingTaskRecord.START_TIME, ">=", taskStartTime);
+                EBPFProfilingTaskRecord.START_TIME, ">=", taskStartTime);
         }
         if (latestUpdateTime > 0) {
             appendCondition(conditionSql, condition,
-                    EBPFProfilingTaskRecord.LAST_UPDATE_TIME, ">", latestUpdateTime);
+                EBPFProfilingTaskRecord.LAST_UPDATE_TIME, ">", latestUpdateTime);
         }
 
         if (conditionSql.length() > 0) {
@@ -85,8 +68,70 @@ public class H2EBPFProfilingTaskDAO implements IEBPFProfilingTaskDAO {
 
         try (Connection connection = h2Client.getConnection()) {
             try (ResultSet resultSet = h2Client.executeQuery(
-                    connection, sql.toString(), condition.toArray(new Object[0]))) {
+                connection, sql.toString(), condition.toArray(new Object[0]))) {
                 return buildTasks(resultSet);
+            }
+        } catch (SQLException e) {
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public List<EBPFProfilingTask> queryTasksByTargets(String serviceId, String serviceInstanceId, List<EBPFProfilingTargetType> targetTypes, long taskStartTime, long latestUpdateTime) throws IOException {
+        final StringBuilder sql = new StringBuilder();
+        List<Object> condition = new ArrayList<>();
+        sql.append("select * from ").append(EBPFProfilingTaskRecord.INDEX_NAME);
+
+        StringBuilder conditionSql = new StringBuilder();
+
+        if (StringUtil.isNotEmpty(serviceId)) {
+            appendCondition(conditionSql, condition, EBPFProfilingTaskRecord.SERVICE_ID, serviceId);
+        }
+        if (StringUtil.isNotEmpty(serviceInstanceId)) {
+            appendCondition(conditionSql, condition, EBPFProfilingTaskRecord.INSTANCE_ID, serviceInstanceId);
+        }
+        appendListCondition(conditionSql, condition, EBPFProfilingTaskRecord.TARGET_TYPE, targetTypes.stream()
+            .map(EBPFProfilingTargetType::value).collect(Collectors.toList()));
+        if (taskStartTime > 0) {
+            appendCondition(conditionSql, condition,
+                EBPFProfilingTaskRecord.START_TIME, ">=", taskStartTime);
+        }
+        if (latestUpdateTime > 0) {
+            appendCondition(conditionSql, condition,
+                EBPFProfilingTaskRecord.LAST_UPDATE_TIME, ">", latestUpdateTime);
+        }
+
+        if (conditionSql.length() > 0) {
+            sql.append(" where ").append(conditionSql);
+        }
+
+        try (Connection connection = h2Client.getConnection()) {
+            try (ResultSet resultSet = h2Client.executeQuery(
+                connection, sql.toString(), condition.toArray(new Object[0]))) {
+                return buildTasks(resultSet);
+            }
+        } catch (SQLException e) {
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public EBPFProfilingTask queryById(String id) throws IOException {
+        final StringBuilder sql = new StringBuilder();
+        sql.append("select * from ").append(EBPFProfilingTaskRecord.INDEX_NAME)
+            .append(" where ").append(EBPFProfilingTaskRecord.LOGICAL_ID).append("=?");
+
+        try (Connection connection = h2Client.getConnection()) {
+            try (ResultSet resultSet = h2Client.executeQuery(connection, sql.toString(), id)) {
+                final List<EBPFProfilingTask> tasks = buildTasks(resultSet);
+                if (CollectionUtils.isEmpty(tasks)) {
+                    return null;
+                }
+                EBPFProfilingTask result = tasks.get(0);
+                for (int i = 1; i < tasks.size(); i++) {
+                    result = result.combine(tasks.get(i));
+                }
+                return result;
             }
         } catch (SQLException e) {
             throw new IOException(e);
@@ -97,17 +142,20 @@ public class H2EBPFProfilingTaskDAO implements IEBPFProfilingTaskDAO {
         List<EBPFProfilingTask> tasks = new ArrayList<>();
         while (resultSet.next()) {
             EBPFProfilingTask task = new EBPFProfilingTask();
-            task.setTaskId(resultSet.getString(H2TableInstaller.ID_COLUMN));
-            task.setProcessFinderType(EBPFProfilingProcessFinderType.valueOf(
-                    resultSet.getInt(EBPFProfilingTaskRecord.PROCESS_FIND_TYPE)));
+            task.setTaskId(resultSet.getString(EBPFProfilingTaskRecord.LOGICAL_ID));
             final String serviceId = resultSet.getString(EBPFProfilingTaskRecord.SERVICE_ID);
             task.setServiceId(serviceId);
             task.setServiceName(IDManager.ServiceID.analysisId(serviceId).getName());
-            final String instanceId = resultSet.getString(EBPFProfilingTaskRecord.INSTANCE_ID);
-            task.setInstanceId(instanceId);
-            task.setInstanceName(IDManager.ServiceInstanceID.analysisId(instanceId).getName());
-            task.setProcessId(resultSet.getString(EBPFProfilingTaskRecord.PROCESS_ID));
-            task.setProcessName(resultSet.getString(EBPFProfilingTaskRecord.PROCESS_NAME));
+            final String processLabelString = resultSet.getString(EBPFProfilingTaskRecord.PROCESS_LABELS_JSON);
+            if (StringUtil.isNotEmpty(processLabelString)) {
+                task.setProcessLabels(GSON.<List<String>>fromJson(processLabelString, ArrayList.class));
+            } else {
+                task.setProcessLabels(Collections.emptyList());
+            }
+            if (StringUtil.isNotEmpty(resultSet.getString(EBPFProfilingTaskRecord.INSTANCE_ID))) {
+                task.setServiceInstanceId(resultSet.getString(EBPFProfilingTaskRecord.INSTANCE_ID));
+                task.setServiceInstanceName(IDManager.ServiceInstanceID.analysisId(task.getServiceInstanceId()).getName());
+            }
             task.setTaskStartTime(resultSet.getLong(EBPFProfilingTaskRecord.START_TIME));
             task.setTriggerType(EBPFProfilingTriggerType.valueOf(
                     resultSet.getInt(EBPFProfilingTaskRecord.TRIGGER_TYPE)));

@@ -35,6 +35,7 @@ import org.apache.skywalking.oap.server.core.analysis.metrics.annotation.Entranc
 import org.apache.skywalking.oap.server.core.analysis.metrics.annotation.SourceFrom;
 import org.apache.skywalking.oap.server.core.query.sql.Function;
 import org.apache.skywalking.oap.server.core.remote.grpc.proto.RemoteData;
+import org.apache.skywalking.oap.server.core.storage.annotation.BanyanDB;
 import org.apache.skywalking.oap.server.core.storage.annotation.Column;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Entity;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Storage;
@@ -47,7 +48,8 @@ public abstract class SumFunction extends Meter implements AcceptableValue<Long>
 
     @Setter
     @Getter
-    @Column(columnName = ENTITY_ID, length = 512, shardingKeyIdx = 0)
+    @Column(columnName = ENTITY_ID, length = 512)
+    @BanyanDB.ShardingKey(index = 0)
     private String entityId;
 
     @Setter
@@ -181,15 +183,5 @@ public abstract class SumFunction extends Meter implements AcceptableValue<Long>
     @Override
     public int hashCode() {
         return Objects.hash(getEntityId(), getTimeBucket());
-    }
-
-    @Override
-    public boolean haveDefault() {
-        return true;
-    }
-
-    @Override
-    public boolean isDefaultValue() {
-        return value == 0;
     }
 }

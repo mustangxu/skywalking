@@ -24,6 +24,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.apache.skywalking.oap.server.core.query.input.Duration;
 import org.apache.skywalking.oap.server.library.util.StringUtil;
 import org.apache.skywalking.oap.server.core.browser.manual.errorlog.BrowserErrorLogRecord;
 import org.apache.skywalking.oap.server.core.browser.source.BrowserErrorCategory;
@@ -43,10 +44,14 @@ public class H2BrowserLogQueryDAO implements IBrowserLogQueryDAO {
                                                   String serviceVersionId,
                                                   String pagePathId,
                                                   BrowserErrorCategory category,
-                                                  long startSecondTB,
-                                                  long endSecondTB,
+                                                  Duration duration,
                                                   int limit,
                                                   int from) throws IOException {
+        long startSecondTB = 0, endSecondTB = 0;
+        if (nonNull(duration)) {
+            startSecondTB = duration.getStartTimeBucketInSec();
+            endSecondTB = duration.getEndTimeBucketInSec();
+        }
         StringBuilder sql = new StringBuilder();
 
         List<Object> parameters = new ArrayList<>(9);
@@ -83,13 +88,6 @@ public class H2BrowserLogQueryDAO implements IBrowserLogQueryDAO {
         BrowserErrorLogs logs = new BrowserErrorLogs();
         try (Connection connection = h2Client.getConnection()) {
 
-            try (ResultSet resultSet = h2Client.executeQuery(connection, buildCountStatement(sql.toString()), parameters
-                .toArray(new Object[0]))) {
-                while (resultSet.next()) {
-                    logs.setTotal(resultSet.getInt("total"));
-                }
-            }
-
             buildLimit(sql, from, limit);
 
             try (ResultSet resultSet = h2Client.executeQuery(
@@ -108,10 +106,6 @@ public class H2BrowserLogQueryDAO implements IBrowserLogQueryDAO {
             throw new IOException(e);
         }
         return logs;
-    }
-
-    protected String buildCountStatement(String sql) {
-        return "select count(1) total from (select 1 " + sql + " )";
     }
 
     protected void buildLimit(StringBuilder sql, int from, int limit) {

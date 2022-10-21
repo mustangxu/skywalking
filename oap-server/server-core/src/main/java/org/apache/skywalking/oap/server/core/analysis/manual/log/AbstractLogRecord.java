@@ -25,14 +25,16 @@ import org.apache.skywalking.oap.server.core.UnexpectedException;
 import org.apache.skywalking.oap.server.core.analysis.manual.searchtag.Tag;
 import org.apache.skywalking.oap.server.core.analysis.record.Record;
 import org.apache.skywalking.oap.server.core.query.type.ContentType;
+import org.apache.skywalking.oap.server.core.storage.annotation.BanyanDB;
 import org.apache.skywalking.oap.server.core.storage.annotation.Column;
+import org.apache.skywalking.oap.server.core.storage.annotation.ElasticSearch;
+import org.apache.skywalking.oap.server.core.storage.annotation.SQLDatabase;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Entity;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Storage;
-import org.apache.skywalking.oap.server.core.storage.type.HashMapConverter;
 import org.apache.skywalking.oap.server.core.storage.type.StorageBuilder;
 
 public abstract class AbstractLogRecord extends Record {
-
+    public static final String ADDITIONAL_TAG_TABLE = "log_tag";
     public static final String SERVICE_ID = "service_id";
     public static final String SERVICE_INSTANCE_ID = "service_instance_id";
     public static final String ENDPOINT_ID = "endpoint_id";
@@ -47,11 +49,14 @@ public abstract class AbstractLogRecord extends Record {
 
     @Setter
     @Getter
-    @Column(columnName = SERVICE_ID, shardingKeyIdx = 0)
+    @Column(columnName = SERVICE_ID)
+    @BanyanDB.ShardingKey(index = 0)
+    @SQLDatabase.AdditionalEntity(additionalTables = {ADDITIONAL_TAG_TABLE}, reserveOriginalColumns = true)
     private String serviceId;
     @Setter
     @Getter
-    @Column(columnName = SERVICE_INSTANCE_ID, shardingKeyIdx = 1)
+    @Column(columnName = SERVICE_INSTANCE_ID)
+    @BanyanDB.ShardingKey(index = 1)
     private String serviceInstanceId;
     @Setter
     @Getter
@@ -60,14 +65,17 @@ public abstract class AbstractLogRecord extends Record {
     @Setter
     @Getter
     @Column(columnName = TRACE_ID, length = 150)
+    @BanyanDB.GlobalIndex
     private String traceId;
     @Setter
     @Getter
     @Column(columnName = TRACE_SEGMENT_ID, length = 150)
+    @BanyanDB.GlobalIndex
     private String traceSegmentId;
     @Setter
     @Getter
     @Column(columnName = SPAN_ID)
+    @BanyanDB.NoIndexing
     private int spanId;
     @Setter
     @Getter
@@ -75,7 +83,8 @@ public abstract class AbstractLogRecord extends Record {
     private int contentType = ContentType.NONE.value();
     @Setter
     @Getter
-    @Column(columnName = CONTENT, length = 1_000_000, matchQuery = true, analyzer = Column.AnalyzerType.OAP_LOG_ANALYZER)
+    @Column(columnName = CONTENT, length = 1_000_000)
+    @ElasticSearch.MatchQuery(analyzer = ElasticSearch.MatchQuery.AnalyzerType.OAP_LOG_ANALYZER)
     private String content;
     @Setter
     @Getter
@@ -91,16 +100,9 @@ public abstract class AbstractLogRecord extends Record {
     private byte[] tagsRawData;
     @Setter
     @Getter
-    @Column(columnName = TAGS, indexOnly = true)
+    @Column(columnName = TAGS, indexOnly = true, length = Tag.TAG_LENGTH)
+    @SQLDatabase.AdditionalEntity(additionalTables = {ADDITIONAL_TAG_TABLE})
     private List<String> tagsInString;
-
-    /**
-     * tags is a duplicate field of {@link #tagsInString}. Some storage don't support array values in a single column.
-     * Then, those implementations could use this raw data to generate necessary data structures.
-     */
-    @Setter
-    @Getter
-    private List<Tag> tags;
 
     @Override
     public String id() {
@@ -118,7 +120,7 @@ public abstract class AbstractLogRecord extends Record {
             record.setContentType(((Number) converter.get(CONTENT_TYPE)).intValue());
             record.setContent((String) converter.get(CONTENT));
             record.setTimestamp(((Number) converter.get(TIMESTAMP)).longValue());
-            record.setTagsRawData(converter.getWith(TAGS_RAW_DATA, HashMapConverter.ToEntity.Base64Decoder.INSTANCE));
+            record.setTagsRawData(converter.getBytes(TAGS_RAW_DATA));
             record.setTimeBucket(((Number) converter.get(TIME_BUCKET)).longValue());
         }
 

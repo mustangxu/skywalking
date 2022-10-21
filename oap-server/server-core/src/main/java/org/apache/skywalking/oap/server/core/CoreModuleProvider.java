@@ -18,8 +18,6 @@
 
 package org.apache.skywalking.oap.server.core;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import org.apache.skywalking.oap.server.configuration.api.ConfigurationModule;
@@ -30,7 +28,6 @@ import org.apache.skywalking.oap.server.core.analysis.StreamAnnotationListener;
 import org.apache.skywalking.oap.server.core.analysis.meter.MeterEntity;
 import org.apache.skywalking.oap.server.core.analysis.meter.MeterSystem;
 import org.apache.skywalking.oap.server.core.analysis.metrics.ApdexMetrics;
-import org.apache.skywalking.oap.server.core.analysis.worker.ManagementStreamProcessor;
 import org.apache.skywalking.oap.server.core.analysis.worker.MetricsStreamProcessor;
 import org.apache.skywalking.oap.server.core.analysis.worker.TopNStreamProcessor;
 import org.apache.skywalking.oap.server.core.annotation.AnnotationScan;
@@ -67,6 +64,7 @@ import org.apache.skywalking.oap.server.core.query.MetadataQueryService;
 import org.apache.skywalking.oap.server.core.query.MetricsMetadataQueryService;
 import org.apache.skywalking.oap.server.core.query.MetricsQueryService;
 import org.apache.skywalking.oap.server.core.profiling.trace.ProfileTaskQueryService;
+import org.apache.skywalking.oap.server.core.query.TagAutoCompleteQueryService;
 import org.apache.skywalking.oap.server.core.query.TopNRecordsQueryService;
 import org.apache.skywalking.oap.server.core.query.TopologyQueryService;
 import org.apache.skywalking.oap.server.core.query.TraceQueryService;
@@ -101,7 +99,6 @@ import org.apache.skywalking.oap.server.library.server.ServerException;
 import org.apache.skywalking.oap.server.library.server.grpc.GRPCServer;
 import org.apache.skywalking.oap.server.library.server.http.HTTPServer;
 import org.apache.skywalking.oap.server.library.server.http.HTTPServerConfig;
-import org.apache.skywalking.oap.server.library.util.ResourceUtils;
 import org.apache.skywalking.oap.server.telemetry.TelemetryModule;
 import org.apache.skywalking.oap.server.telemetry.api.TelemetryRelatedContext;
 
@@ -109,8 +106,8 @@ import org.apache.skywalking.oap.server.telemetry.api.TelemetryRelatedContext;
  * Core module provider includes the recommended and default implementations of {@link CoreModule#services()}. All
  * services with these default implementations are widely used including data receiver, data analysis, streaming
  * process, storage and query.
- *
- * NOTICE. In our experiences, no one should re-implement the core module service implementations, unless we are very
+ * <p>
+ * NOTICE: In our experience, no one should re-implement the core module service implementations, unless they are very
  * familiar with all mechanisms of SkyWalking.
  */
 public class CoreModuleProvider extends ModuleProvider {
@@ -256,7 +253,7 @@ public class CoreModuleProvider extends ModuleProvider {
         this.registerServiceImplementation(
             NetworkAddressAliasCache.class, new NetworkAddressAliasCache(moduleConfig));
 
-        this.registerServiceImplementation(TopologyQueryService.class, new TopologyQueryService(getManager()));
+        this.registerServiceImplementation(TopologyQueryService.class, new TopologyQueryService(getManager(), storageModels));
         this.registerServiceImplementation(MetricsMetadataQueryService.class, new MetricsMetadataQueryService());
         this.registerServiceImplementation(MetricsQueryService.class, new MetricsQueryService(getManager()));
         this.registerServiceImplementation(TraceQueryService.class, new TraceQueryService(getManager()));
@@ -267,6 +264,7 @@ public class CoreModuleProvider extends ModuleProvider {
         this.registerServiceImplementation(AlarmQueryService.class, new AlarmQueryService(getManager()));
         this.registerServiceImplementation(TopNRecordsQueryService.class, new TopNRecordsQueryService(getManager()));
         this.registerServiceImplementation(EventQueryService.class, new EventQueryService(getManager()));
+        this.registerServiceImplementation(TagAutoCompleteQueryService.class, new TagAutoCompleteQueryService(getManager(), moduleConfig));
 
         // add profile service implementations
         this.registerServiceImplementation(
@@ -385,19 +383,8 @@ public class CoreModuleProvider extends ModuleProvider {
         CacheUpdateTimer.INSTANCE.start(getManager(), moduleConfig.getMetricsDataTTL());
 
         try {
-            final File[] templateFiles = ResourceUtils.getPathFiles("ui-initialized-templates");
-            for (final File templateFile : templateFiles) {
-                if (!templateFile.getName().endsWith(".yml") && !templateFile.getName().endsWith(".yaml")) {
-                    continue;
-                }
-                new UITemplateInitializer(new FileInputStream(templateFile))
-                    .read()
-                    .forEach(uiTemplate -> {
-                        ManagementStreamProcessor.getInstance().in(uiTemplate);
-                    });
-            }
-
-        } catch (FileNotFoundException e) {
+            new UITemplateInitializer(getManager()).initAll();
+        } catch (IOException e) {
             throw new ModuleStartException(e.getMessage(), e);
         }
     }

@@ -34,7 +34,9 @@ import org.apache.skywalking.oap.server.core.analysis.metrics.DataTable;
 import org.apache.skywalking.oap.server.core.analysis.metrics.LabeledValueHolder;
 import org.apache.skywalking.oap.server.core.analysis.metrics.Metrics;
 import org.apache.skywalking.oap.server.core.remote.grpc.proto.RemoteData;
+import org.apache.skywalking.oap.server.core.storage.annotation.BanyanDB;
 import org.apache.skywalking.oap.server.core.storage.annotation.Column;
+import org.apache.skywalking.oap.server.core.storage.annotation.ElasticSearch;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Entity;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Storage;
 import org.apache.skywalking.oap.server.core.storage.type.StorageBuilder;
@@ -48,7 +50,8 @@ public abstract class AvgLabeledFunction extends Meter implements AcceptableValu
 
     @Setter
     @Getter
-    @Column(columnName = ENTITY_ID, length = 512, shardingKeyIdx = 0)
+    @Column(columnName = ENTITY_ID, length = 512)
+    @BanyanDB.ShardingKey(index = 0)
     private String entityId;
 
     /**
@@ -62,14 +65,17 @@ public abstract class AvgLabeledFunction extends Meter implements AcceptableValu
     @Getter
     @Setter
     @Column(columnName = SUMMATION, storageOnly = true)
+    @ElasticSearch.Column(columnAlias = "datatable_summation")
     protected DataTable summation = new DataTable(30);
     @Getter
     @Setter
     @Column(columnName = COUNT, storageOnly = true)
+    @ElasticSearch.Column(columnAlias = "datatable_count")
     protected DataTable count = new DataTable(30);
     @Getter
     @Setter
     @Column(columnName = VALUE, dataType = Column.ValueDataType.LABELED_VALUE, storageOnly = true)
+    @ElasticSearch.Column(columnAlias = "datatable_value")
     private DataTable value = new DataTable(30);
 
     @Override
@@ -106,8 +112,8 @@ public abstract class AvgLabeledFunction extends Meter implements AcceptableValu
         metrics.setEntityId(getEntityId());
         metrics.setTimeBucket(toTimeBucketInHour());
         metrics.setServiceId(getServiceId());
-        metrics.setSummation(getSummation());
-        metrics.setCount(getCount());
+        metrics.getSummation().copyFrom(getSummation());
+        metrics.getCount().copyFrom(getCount());
         return metrics;
     }
 
@@ -117,8 +123,8 @@ public abstract class AvgLabeledFunction extends Meter implements AcceptableValu
         metrics.setEntityId(getEntityId());
         metrics.setTimeBucket(toTimeBucketInDay());
         metrics.setServiceId(getServiceId());
-        metrics.setSummation(getSummation());
-        metrics.setCount(getCount());
+        metrics.getSummation().copyFrom(getSummation());
+        metrics.getCount().copyFrom(getCount());
         return metrics;
     }
 

@@ -26,6 +26,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.skywalking.oap.server.core.query.input.Duration;
 import org.apache.skywalking.oap.server.library.util.StringUtil;
 import org.apache.skywalking.oap.server.core.Const;
 import org.apache.skywalking.oap.server.core.CoreModule;
@@ -43,7 +44,6 @@ import org.apache.skywalking.oap.server.core.storage.query.ILogQueryDAO;
 import org.apache.skywalking.oap.server.library.client.jdbc.hikaricp.JDBCHikariCPClient;
 import org.apache.skywalking.oap.server.library.module.ModuleManager;
 import org.apache.skywalking.oap.server.library.util.CollectionUtils;
-
 import static java.util.Objects.nonNull;
 import static org.apache.skywalking.oap.server.core.analysis.manual.log.AbstractLogRecord.CONTENT;
 import static org.apache.skywalking.oap.server.core.analysis.manual.log.AbstractLogRecord.CONTENT_TYPE;
@@ -55,22 +55,17 @@ import static org.apache.skywalking.oap.server.core.analysis.manual.log.Abstract
 import static org.apache.skywalking.oap.server.core.analysis.manual.log.AbstractLogRecord.TIMESTAMP;
 import static org.apache.skywalking.oap.server.core.analysis.manual.log.AbstractLogRecord.TRACE_ID;
 import static org.apache.skywalking.oap.server.core.analysis.manual.log.AbstractLogRecord.TRACE_SEGMENT_ID;
+import static org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2TableInstaller.ID_COLUMN;
 
 public class H2LogQueryDAO implements ILogQueryDAO {
     private final JDBCHikariCPClient h2Client;
     private final ModuleManager manager;
-    private final int maxSizeOfArrayColumn;
-    private final int numOfSearchValuesPerTag;
     private List<String> searchableTagKeys;
 
     public H2LogQueryDAO(final JDBCHikariCPClient h2Client,
-                         final ModuleManager manager,
-                         final int maxSizeOfArrayColumn,
-                         final int numOfSearchValuesPerTag) {
+                         final ModuleManager manager) {
         this.h2Client = h2Client;
         this.manager = manager;
-        this.maxSizeOfArrayColumn = maxSizeOfArrayColumn;
-        this.numOfSearchValuesPerTag = numOfSearchValuesPerTag;
     }
 
     @Override
@@ -81,34 +76,49 @@ public class H2LogQueryDAO implements ILogQueryDAO {
                           Order queryOrder,
                           int from,
                           int limit,
-                          final long startSecondTB,
-                          final long endSecondTB,
+                          final Duration duration,
                           final List<Tag> tags,
                           final List<String> keywordsOfContent,
                           final List<String> excludingKeywordsOfContent) throws IOException {
+        long startSecondTB = 0;
+        long endSecondTB = 0;
+        if (nonNull(duration)) {
+            startSecondTB = duration.getStartTimeBucketInSec();
+            endSecondTB = duration.getEndTimeBucketInSec();
+        }
         if (searchableTagKeys == null) {
             final ConfigService configService = manager.find(CoreModule.NAME)
                                                        .provider()
                                                        .getService(ConfigService.class);
             searchableTagKeys = Arrays.asList(configService.getSearchableLogsTags().split(Const.COMMA));
-            if (searchableTagKeys.size() > maxSizeOfArrayColumn) {
-                searchableTagKeys = searchableTagKeys.subList(0, maxSizeOfArrayColumn);
-            }
         }
         StringBuilder sql = new StringBuilder();
         List<Object> parameters = new ArrayList<>(10);
 
-        sql.append("from ").append(LogRecord.INDEX_NAME).append(" where ");
+        sql.append("from ").append(LogRecord.INDEX_NAME);
+        /**
+         * This is an AdditionalEntity feature, see:
+         * {@link org.apache.skywalking.oap.server.core.storage.annotation.SQLDatabase.AdditionalEntity}
+         */
+        if (!CollectionUtils.isEmpty(tags)) {
+            for (int i = 0; i < tags.size(); i++) {
+                sql.append(" inner join ").append(AbstractLogRecord.ADDITIONAL_TAG_TABLE).append(" ");
+                sql.append(AbstractLogRecord.ADDITIONAL_TAG_TABLE + i);
+                sql.append(" on ").append(LogRecord.INDEX_NAME).append(".").append(ID_COLUMN).append(" = ");
+                sql.append(AbstractLogRecord.ADDITIONAL_TAG_TABLE + i).append(".").append(ID_COLUMN);
+            }
+        }
+        sql.append(" where ");
         sql.append(" 1=1 ");
         if (startSecondTB != 0 && endSecondTB != 0) {
-            sql.append(" and ").append(AbstractLogRecord.TIME_BUCKET).append(" >= ?");
+            sql.append(" and ").append(LogRecord.INDEX_NAME).append(".").append(AbstractLogRecord.TIME_BUCKET).append(" >= ?");
             parameters.add(startSecondTB);
-            sql.append(" and ").append(AbstractLogRecord.TIME_BUCKET).append(" <= ?");
+            sql.append(" and ").append(LogRecord.INDEX_NAME).append(".").append(AbstractLogRecord.TIME_BUCKET).append(" <= ?");
             parameters.add(endSecondTB);
         }
 
         if (StringUtil.isNotEmpty(serviceId)) {
-            sql.append(" and ").append(SERVICE_ID).append(" = ?");
+            sql.append(" and ").append(LogRecord.INDEX_NAME).append(".").append(SERVICE_ID).append(" = ?");
             parameters.add(serviceId);
         }
         if (StringUtil.isNotEmpty(serviceInstanceId)) {
@@ -135,20 +145,14 @@ public class H2LogQueryDAO implements ILogQueryDAO {
         }
 
         if (CollectionUtils.isNotEmpty(tags)) {
-            for (final Tag tag : tags) {
-                final int foundIdx = searchableTagKeys.indexOf(tag.getKey());
+            for (int i = 0; i < tags.size(); i++) {
+                final int foundIdx = searchableTagKeys.indexOf(tags.get(i).getKey());
                 if (foundIdx > -1) {
-                    sql.append(" and (");
-                    for (int i = 0; i < numOfSearchValuesPerTag; i++) {
-                        final String physicalColumn = LogRecord.TAGS + "_" + (foundIdx * numOfSearchValuesPerTag + i);
-                        sql.append(physicalColumn).append(" = ? ");
-                        parameters.add(tag.toString());
-                        if (i != numOfSearchValuesPerTag - 1) {
-                            sql.append(" or ");
-                        }
-                    }
-                    sql.append(")");
+                    sql.append(" and ").append(AbstractLogRecord.ADDITIONAL_TAG_TABLE + i).append(".");
+                    sql.append(AbstractLogRecord.TAGS).append(" = ?");
+                    parameters.add(tags.get(i).toString());
                 } else {
+                    //If the tag is not searchable, but is required, then don't need to run the real query.
                     return new Logs();
                 }
             }
@@ -161,13 +165,6 @@ public class H2LogQueryDAO implements ILogQueryDAO {
 
         Logs logs = new Logs();
         try (Connection connection = h2Client.getConnection()) {
-
-            try (ResultSet resultSet = h2Client.executeQuery(connection, buildCountStatement(sql.toString()), parameters
-                .toArray(new Object[0]))) {
-                while (resultSet.next()) {
-                    logs.setTotal(resultSet.getInt("total"));
-                }
-            }
 
             buildLimit(sql, from, limit);
 
@@ -197,10 +194,6 @@ public class H2LogQueryDAO implements ILogQueryDAO {
         }
 
         return logs;
-    }
-
-    protected String buildCountStatement(String sql) {
-        return "select count(1) total from (select 1 " + sql + " )";
     }
 
     protected void buildLimit(StringBuilder sql, int from, int limit) {

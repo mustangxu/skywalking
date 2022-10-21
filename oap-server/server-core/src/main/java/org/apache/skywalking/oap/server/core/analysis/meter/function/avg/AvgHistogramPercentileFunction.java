@@ -43,7 +43,9 @@ import org.apache.skywalking.oap.server.core.analysis.metrics.Metrics;
 import org.apache.skywalking.oap.server.core.analysis.metrics.MultiIntValuesHolder;
 import org.apache.skywalking.oap.server.core.query.type.Bucket;
 import org.apache.skywalking.oap.server.core.remote.grpc.proto.RemoteData;
+import org.apache.skywalking.oap.server.core.storage.annotation.BanyanDB;
 import org.apache.skywalking.oap.server.core.storage.annotation.Column;
+import org.apache.skywalking.oap.server.core.storage.annotation.ElasticSearch;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Entity;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Storage;
 import org.apache.skywalking.oap.server.core.storage.type.StorageBuilder;
@@ -74,19 +76,23 @@ public abstract class AvgHistogramPercentileFunction extends Meter implements Ac
 
     @Setter
     @Getter
-    @Column(columnName = ENTITY_ID, shardingKeyIdx = 0)
+    @Column(columnName = ENTITY_ID)
+    @BanyanDB.ShardingKey(index = 0)
     private String entityId;
     @Getter
     @Setter
     @Column(columnName = VALUE, dataType = Column.ValueDataType.LABELED_VALUE, storageOnly = true)
+    @ElasticSearch.Column(columnAlias = "datatable_value")
     private DataTable percentileValues = new DataTable(10);
     @Getter
     @Setter
     @Column(columnName = SUMMATION, storageOnly = true)
+    @ElasticSearch.Column(columnAlias = "datatable_summation")
     protected DataTable summation = new DataTable(30);
     @Getter
     @Setter
     @Column(columnName = COUNT, storageOnly = true)
+    @ElasticSearch.Column(columnAlias = "datatable_count")
     protected DataTable count = new DataTable(30);
     @Getter
     @Setter
@@ -259,10 +265,10 @@ public abstract class AvgHistogramPercentileFunction extends Meter implements Ac
         AvgHistogramPercentileFunction metrics = (AvgHistogramPercentileFunction) createNew();
         metrics.setEntityId(getEntityId());
         metrics.setTimeBucket(toTimeBucketInHour());
-        metrics.setSummation(getSummation());
-        metrics.setCount(getCount());
-        metrics.setRanks(getRanks());
-        metrics.setPercentileValues(getPercentileValues());
+        metrics.getSummation().copyFrom(getSummation());
+        metrics.getCount().copyFrom(getCount());
+        metrics.getRanks().copyFrom(getRanks());
+        metrics.getPercentileValues().copyFrom(getPercentileValues());
         return metrics;
     }
 
@@ -271,10 +277,10 @@ public abstract class AvgHistogramPercentileFunction extends Meter implements Ac
         AvgHistogramPercentileFunction metrics = (AvgHistogramPercentileFunction) createNew();
         metrics.setEntityId(getEntityId());
         metrics.setTimeBucket(toTimeBucketInDay());
-        metrics.setSummation(getSummation());
-        metrics.setCount(getCount());
-        metrics.setRanks(getRanks());
-        metrics.setPercentileValues(getPercentileValues());
+        metrics.getSummation().copyFrom(getSummation());
+        metrics.getCount().copyFrom(getCount());
+        metrics.getRanks().copyFrom(getRanks());
+        metrics.getPercentileValues().copyFrom(getPercentileValues());
         return metrics;
     }
 

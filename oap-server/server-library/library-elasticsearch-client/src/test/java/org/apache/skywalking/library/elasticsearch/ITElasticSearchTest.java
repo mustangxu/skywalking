@@ -19,14 +19,19 @@ package org.apache.skywalking.library.elasticsearch;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.apache.skywalking.library.elasticsearch.client.TemplateClient;
 import org.apache.skywalking.library.elasticsearch.requests.IndexRequest;
+import org.apache.skywalking.library.elasticsearch.requests.UpdateRequest;
 import org.apache.skywalking.library.elasticsearch.requests.search.Query;
 import org.apache.skywalking.library.elasticsearch.requests.search.Search;
 import org.apache.skywalking.library.elasticsearch.requests.search.aggregation.Aggregation;
+import org.apache.skywalking.library.elasticsearch.response.Document;
+import org.apache.skywalking.library.elasticsearch.response.Documents;
 import org.apache.skywalking.library.elasticsearch.response.IndexTemplate;
 import org.apache.skywalking.library.elasticsearch.response.Mappings;
 import org.apache.skywalking.library.elasticsearch.response.search.SearchResponse;
@@ -80,6 +85,15 @@ public class ITElasticSearchTest {
                                    .withTag("7.15.0")
                                    .asCompatibleSubstituteFor(
                                        "docker.elastic.co/elasticsearch/elasticsearch-oss"))
+            },
+            {
+                "ElasticSearch 8.1.0",
+                new ElasticsearchContainer(
+                    DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
+                        .withTag("8.1.0")
+                        .asCompatibleSubstituteFor(
+                            "docker.elastic.co/elasticsearch/elasticsearch-oss"))
+                                .withEnv("xpack.security.enabled", "false")
             },
             {
                 "OpenSearch 1.0.0",
@@ -186,6 +200,40 @@ public class ITElasticSearchTest {
         assertEquals(client.documents().get(index, type, idWithSpace).get().getSource(), doc);
     }
 
+    @Test
+    public void testDocUpdate() {
+        final String index = "test-index-update";
+        assertTrue(client.index().create(index, null, null));
+
+        final ImmutableMap<String, Object> doc = ImmutableMap.of("key", "val");
+        final String idWithSpace = "an id"; // UI management templates' IDs contains spaces
+        final String type = "type";
+
+        client.documents().index(
+            IndexRequest.builder()
+                        .index(index)
+                        .type(type)
+                        .id(idWithSpace)
+                        .doc(doc)
+                        .build(), null);
+
+        assertTrue(client.documents().get(index, type, idWithSpace).isPresent());
+        assertEquals(client.documents().get(index, type, idWithSpace).get().getId(), idWithSpace);
+        assertEquals(client.documents().get(index, type, idWithSpace).get().getSource(), doc);
+
+        final Map<String, Object> updatedDoc = ImmutableMap.of("key", "new-val");
+        client.documents().update(
+            UpdateRequest
+                .builder()
+                .index(index)
+                .type(type)
+                .id(idWithSpace)
+                .doc(updatedDoc)
+                .build(),
+            null);
+        assertEquals(client.documents().get(index, type, idWithSpace).get().getSource(), updatedDoc);
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     public void testSearch() {
@@ -273,6 +321,17 @@ public class ITElasticSearchTest {
                                    .get("buckets")
                        ).size()
                    );
+
+                   //test mGet
+                   Map<String, List<String>> indexIdsGroup = new HashMap<>();
+                   indexIdsGroup.put("test-index", Arrays.asList("id1", "id2"));
+                   Optional<Documents> documents = client.documents().mGet(type, indexIdsGroup);
+                   Map<String, Map<String, Object>> result = new HashMap<>();
+                   for (final Document document : documents.get()) {
+                       result.put(document.getId(), document.getSource());
+                   }
+                   assertEquals(2, result.get("id1").size());
+                   assertEquals(2, result.get("id2").size());
                });
     }
 }

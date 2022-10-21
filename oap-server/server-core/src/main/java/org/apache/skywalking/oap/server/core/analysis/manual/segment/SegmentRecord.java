@@ -26,18 +26,26 @@ import org.apache.skywalking.oap.server.core.analysis.manual.searchtag.Tag;
 import org.apache.skywalking.oap.server.core.analysis.record.Record;
 import org.apache.skywalking.oap.server.core.analysis.worker.RecordStreamProcessor;
 import org.apache.skywalking.oap.server.core.source.DefaultScopeDefine;
+import org.apache.skywalking.oap.server.core.storage.ShardingAlgorithm;
+import org.apache.skywalking.oap.server.core.storage.annotation.BanyanDB;
 import org.apache.skywalking.oap.server.core.storage.annotation.Column;
+import org.apache.skywalking.oap.server.core.storage.annotation.SQLDatabase;
 import org.apache.skywalking.oap.server.core.storage.annotation.SuperDataset;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Entity;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Storage;
-import org.apache.skywalking.oap.server.core.storage.type.HashMapConverter;
 import org.apache.skywalking.oap.server.core.storage.type.StorageBuilder;
+
+import static org.apache.skywalking.oap.server.core.analysis.manual.segment.SegmentRecord.SERVICE_ID;
+import static org.apache.skywalking.oap.server.core.analysis.record.Record.TIME_BUCKET;
 
 @SuperDataset
 @Stream(name = SegmentRecord.INDEX_NAME, scopeId = DefaultScopeDefine.SEGMENT, builder = SegmentRecord.Builder.class, processor = RecordStreamProcessor.class)
+@SQLDatabase.ExtraColumn4AdditionalEntity(additionalTable = SegmentRecord.ADDITIONAL_TAG_TABLE, parentColumn = TIME_BUCKET)
+@SQLDatabase.Sharding(shardingAlgorithm = ShardingAlgorithm.TIME_SEC_RANGE_SHARDING_ALGORITHM, dataSourceShardingColumn = SERVICE_ID, tableShardingColumn = TIME_BUCKET)
 public class SegmentRecord extends Record {
 
     public static final String INDEX_NAME = "segment";
+    public static final String ADDITIONAL_TAG_TABLE = "segment_tag";
     public static final String SEGMENT_ID = "segment_id";
     public static final String TRACE_ID = "trace_id";
     public static final String SERVICE_ID = "service_id";
@@ -56,14 +64,18 @@ public class SegmentRecord extends Record {
     @Setter
     @Getter
     @Column(columnName = TRACE_ID, length = 150)
+    @BanyanDB.GlobalIndex
     private String traceId;
     @Setter
     @Getter
-    @Column(columnName = SERVICE_ID, shardingKeyIdx = 0)
+    @Column(columnName = SERVICE_ID)
+    @BanyanDB.ShardingKey(index = 0)
+    @SQLDatabase.AdditionalEntity(additionalTables = {ADDITIONAL_TAG_TABLE}, reserveOriginalColumns = true)
     private String serviceId;
     @Setter
     @Getter
-    @Column(columnName = SERVICE_INSTANCE_ID, shardingKeyIdx = 1)
+    @Column(columnName = SERVICE_INSTANCE_ID)
+    @BanyanDB.ShardingKey(index = 1)
     private String serviceInstanceId;
     @Setter
     @Getter
@@ -79,7 +91,8 @@ public class SegmentRecord extends Record {
     private int latency;
     @Setter
     @Getter
-    @Column(columnName = IS_ERROR, shardingKeyIdx = 2)
+    @Column(columnName = IS_ERROR)
+    @BanyanDB.ShardingKey(index = 2)
     private int isError;
     @Setter
     @Getter
@@ -87,15 +100,9 @@ public class SegmentRecord extends Record {
     private byte[] dataBinary;
     @Setter
     @Getter
-    @Column(columnName = TAGS, indexOnly = true)
+    @Column(columnName = TAGS, indexOnly = true, length = Tag.TAG_LENGTH)
+    @SQLDatabase.AdditionalEntity(additionalTables = {ADDITIONAL_TAG_TABLE})
     private List<String> tags;
-    /**
-     * Tags raw data is a duplicate field of {@link #tags}. Some storage don't support array values in a single column.
-     * Then, those implementations could use this raw data to generate necessary data structures.
-     */
-    @Setter
-    @Getter
-    private List<Tag> tagsRawData;
 
     @Override
     public String id() {
@@ -115,7 +122,7 @@ public class SegmentRecord extends Record {
             record.setLatency(((Number) converter.get(LATENCY)).intValue());
             record.setIsError(((Number) converter.get(IS_ERROR)).intValue());
             record.setTimeBucket(((Number) converter.get(TIME_BUCKET)).longValue());
-            record.setDataBinary(converter.getWith(DATA_BINARY, HashMapConverter.ToEntity.Base64Decoder.INSTANCE));
+            record.setDataBinary(converter.getBytes(DATA_BINARY));
             // Don't read the tags as they have been in the data binary already.
             return record;
         }

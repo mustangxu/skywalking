@@ -33,7 +33,7 @@ public abstract class MaxLongMetrics extends Metrics implements LongValueHolder 
     @Getter
     @Setter
     @Column(columnName = VALUE, dataType = Column.ValueDataType.COMMON_VALUE)
-    private long value = Long.MIN_VALUE;
+    private long value;
 
     @Entrance
     public final void combine(@SourceFrom long count) {
@@ -51,15 +51,5 @@ public abstract class MaxLongMetrics extends Metrics implements LongValueHolder 
 
     @Override
     public void calculate() {
-    }
-
-    @Override
-    public boolean haveDefault() {
-        return true;
-    }
-
-    @Override
-    public boolean isDefaultValue() {
-        return value == 0;
     }
 }

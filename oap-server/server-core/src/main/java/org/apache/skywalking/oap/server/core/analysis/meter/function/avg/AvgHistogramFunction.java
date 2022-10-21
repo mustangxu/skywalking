@@ -34,7 +34,9 @@ import org.apache.skywalking.oap.server.core.analysis.metrics.DataTable;
 import org.apache.skywalking.oap.server.core.analysis.metrics.Metrics;
 import org.apache.skywalking.oap.server.core.query.type.Bucket;
 import org.apache.skywalking.oap.server.core.remote.grpc.proto.RemoteData;
+import org.apache.skywalking.oap.server.core.storage.annotation.BanyanDB;
 import org.apache.skywalking.oap.server.core.storage.annotation.Column;
+import org.apache.skywalking.oap.server.core.storage.annotation.ElasticSearch;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Entity;
 import org.apache.skywalking.oap.server.core.storage.type.Convert2Storage;
 import org.apache.skywalking.oap.server.core.storage.type.StorageBuilder;
@@ -59,15 +61,18 @@ public abstract class AvgHistogramFunction extends Meter implements AcceptableVa
 
     @Setter
     @Getter
-    @Column(columnName = ENTITY_ID, length = 512, shardingKeyIdx = 0)
+    @Column(columnName = ENTITY_ID, length = 512)
+    @BanyanDB.ShardingKey(index = 0)
     private String entityId;
     @Getter
     @Setter
     @Column(columnName = SUMMATION, storageOnly = true)
+    @ElasticSearch.Column(columnAlias = "datatable_summation")
     protected DataTable summation = new DataTable(30);
     @Getter
     @Setter
     @Column(columnName = COUNT, storageOnly = true)
+    @ElasticSearch.Column(columnAlias = "datatable_count")
     protected DataTable count = new DataTable(30);
     @Getter
     @Setter
@@ -121,8 +126,8 @@ public abstract class AvgHistogramFunction extends Meter implements AcceptableVa
         AvgHistogramFunction metrics = (AvgHistogramFunction) createNew();
         metrics.setEntityId(getEntityId());
         metrics.setTimeBucket(toTimeBucketInHour());
-        metrics.setCount(getCount());
-        metrics.setSummation(getSummation());
+        metrics.getSummation().copyFrom(getSummation());
+        metrics.getCount().copyFrom(getCount());
         return metrics;
     }
 
@@ -131,8 +136,8 @@ public abstract class AvgHistogramFunction extends Meter implements AcceptableVa
         AvgHistogramFunction metrics = (AvgHistogramFunction) createNew();
         metrics.setEntityId(getEntityId());
         metrics.setTimeBucket(toTimeBucketInDay());
-        metrics.setCount(getCount());
-        metrics.setSummation(getSummation());
+        metrics.getSummation().copyFrom(getSummation());
+        metrics.getCount().copyFrom(getCount());
         return metrics;
     }
 

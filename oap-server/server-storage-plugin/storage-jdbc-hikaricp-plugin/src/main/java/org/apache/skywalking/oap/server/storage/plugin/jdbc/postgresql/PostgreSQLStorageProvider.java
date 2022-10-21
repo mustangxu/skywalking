@@ -19,9 +19,7 @@
 package org.apache.skywalking.oap.server.storage.plugin.jdbc.postgresql;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.skywalking.oap.server.core.Const;
 import org.apache.skywalking.oap.server.core.CoreModule;
-import org.apache.skywalking.oap.server.core.config.ConfigService;
 import org.apache.skywalking.oap.server.core.storage.IBatchDAO;
 import org.apache.skywalking.oap.server.core.storage.IHistoryDeleteDAO;
 import org.apache.skywalking.oap.server.core.storage.StorageBuilderFactory;
@@ -34,6 +32,7 @@ import org.apache.skywalking.oap.server.core.storage.model.ModelCreator;
 import org.apache.skywalking.oap.server.core.storage.profiling.ebpf.IEBPFProfilingDataDAO;
 import org.apache.skywalking.oap.server.core.storage.profiling.ebpf.IEBPFProfilingScheduleDAO;
 import org.apache.skywalking.oap.server.core.storage.profiling.ebpf.IEBPFProfilingTaskDAO;
+import org.apache.skywalking.oap.server.core.storage.profiling.ebpf.IServiceLabelDAO;
 import org.apache.skywalking.oap.server.core.storage.profiling.trace.IProfileTaskLogQueryDAO;
 import org.apache.skywalking.oap.server.core.storage.profiling.trace.IProfileTaskQueryDAO;
 import org.apache.skywalking.oap.server.core.storage.profiling.trace.IProfileThreadSnapshotQueryDAO;
@@ -44,9 +43,11 @@ import org.apache.skywalking.oap.server.core.storage.query.IEventQueryDAO;
 import org.apache.skywalking.oap.server.core.storage.query.ILogQueryDAO;
 import org.apache.skywalking.oap.server.core.storage.query.IMetadataQueryDAO;
 import org.apache.skywalking.oap.server.core.storage.query.IMetricsQueryDAO;
+import org.apache.skywalking.oap.server.core.storage.query.ITagAutoCompleteQueryDAO;
 import org.apache.skywalking.oap.server.core.storage.query.ITopNRecordsQueryDAO;
 import org.apache.skywalking.oap.server.core.storage.query.ITopologyQueryDAO;
 import org.apache.skywalking.oap.server.core.storage.query.ITraceQueryDAO;
+import org.apache.skywalking.oap.server.core.storage.query.IZipkinQueryDAO;
 import org.apache.skywalking.oap.server.library.client.jdbc.hikaricp.JDBCHikariCPClient;
 import org.apache.skywalking.oap.server.library.module.ModuleConfig;
 import org.apache.skywalking.oap.server.library.module.ModuleDefine;
@@ -61,13 +62,16 @@ import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2EventQueryD
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2HistoryDeleteDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2MetadataQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2NetworkAddressAliasDAO;
+import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2ServiceLabelQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2ProfileTaskLogQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2ProfileTaskQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2ProfileThreadSnapshotQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2StorageDAO;
+import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2TagAutoCompleteQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2TopNRecordsQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2TopologyQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2UITemplateManagementDAO;
+import org.apache.skywalking.oap.server.storage.plugin.jdbc.h2.dao.H2ZipkinQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.mysql.MySQLTableInstaller;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.postgresql.dao.PostgreSQLAggregationQueryDAO;
 import org.apache.skywalking.oap.server.storage.plugin.jdbc.postgresql.dao.PostgreSQLAlarmQueryDAO;
@@ -112,9 +116,7 @@ public class PostgreSQLStorageProvider extends ModuleProvider {
         this.registerServiceImplementation(IBatchDAO.class, new H2BatchDAO(postgresqlClient, config.getMaxSizeOfBatchSql(), config.getAsyncBatchPersistentPoolSize()));
         this.registerServiceImplementation(
                 StorageDAO.class,
-                new H2StorageDAO(
-                        getManager(), postgresqlClient, config.getMaxSizeOfArrayColumn(), config.getNumOfSearchableValuesPerTag())
-        );
+                new H2StorageDAO(postgresqlClient));
         this.registerServiceImplementation(
                 INetworkAddressAliasDAO.class, new H2NetworkAddressAliasDAO(postgresqlClient));
 
@@ -122,35 +124,19 @@ public class PostgreSQLStorageProvider extends ModuleProvider {
         this.registerServiceImplementation(IMetricsQueryDAO.class, new PostgreSQLMetricsQueryDAO(postgresqlClient));
         this.registerServiceImplementation(
                 ITraceQueryDAO.class,
-                new PostgreSQLTraceQueryDAO(
-                        getManager(),
-                        postgresqlClient,
-                        config.getMaxSizeOfArrayColumn(),
-                        config.getNumOfSearchableValuesPerTag()
-                )
+                new PostgreSQLTraceQueryDAO(getManager(), postgresqlClient)
         );
         this.registerServiceImplementation(IBrowserLogQueryDAO.class, new PostgreSQLBrowserLogQueryDAO(postgresqlClient));
         this.registerServiceImplementation(
                 IMetadataQueryDAO.class, new H2MetadataQueryDAO(postgresqlClient, config.getMetadataQueryMaxSize()));
         this.registerServiceImplementation(IAggregationQueryDAO.class, new PostgreSQLAggregationQueryDAO(postgresqlClient));
-        this.registerServiceImplementation(IAlarmQueryDAO.class, new PostgreSQLAlarmQueryDAO(
-                postgresqlClient,
-                getManager(),
-                config.getMaxSizeOfArrayColumn(),
-                config.getNumOfSearchableValuesPerTag()
-        ));
+        this.registerServiceImplementation(IAlarmQueryDAO.class, new PostgreSQLAlarmQueryDAO(postgresqlClient, getManager()));
         this.registerServiceImplementation(
                 IHistoryDeleteDAO.class, new H2HistoryDeleteDAO(postgresqlClient));
         this.registerServiceImplementation(ITopNRecordsQueryDAO.class, new H2TopNRecordsQueryDAO(postgresqlClient));
         this.registerServiceImplementation(
                 ILogQueryDAO.class,
-                new PostgreSQLLogQueryDAO(
-                        postgresqlClient,
-                        getManager(),
-                        config.getMaxSizeOfArrayColumn(),
-                        config.getNumOfSearchableValuesPerTag()
-                )
-        );
+                new PostgreSQLLogQueryDAO(postgresqlClient, getManager()));
 
         this.registerServiceImplementation(IProfileTaskQueryDAO.class, new H2ProfileTaskQueryDAO(postgresqlClient));
         this.registerServiceImplementation(IProfileTaskLogQueryDAO.class, new H2ProfileTaskLogQueryDAO(postgresqlClient));
@@ -162,41 +148,17 @@ public class PostgreSQLStorageProvider extends ModuleProvider {
         this.registerServiceImplementation(IEBPFProfilingTaskDAO.class, new H2EBPFProfilingTaskDAO(postgresqlClient));
         this.registerServiceImplementation(IEBPFProfilingScheduleDAO.class, new H2EBPFProfilingScheduleDAO(postgresqlClient));
         this.registerServiceImplementation(IEBPFProfilingDataDAO.class, new H2EBPFProfilingDataDAO(postgresqlClient));
+        this.registerServiceImplementation(IServiceLabelDAO.class, new H2ServiceLabelQueryDAO(postgresqlClient));
+        this.registerServiceImplementation(ITagAutoCompleteQueryDAO.class, new H2TagAutoCompleteQueryDAO(postgresqlClient));
+        this.registerServiceImplementation(IZipkinQueryDAO.class, new H2ZipkinQueryDAO(postgresqlClient));
     }
 
     @Override
     public void start() throws ServiceNotProvidedException, ModuleStartException {
-        final ConfigService configService = getManager().find(CoreModule.NAME)
-                .provider()
-                .getService(ConfigService.class);
-        final int numOfSearchableTags = configService.getSearchableTracesTags().split(Const.COMMA).length;
-        if (numOfSearchableTags * config.getNumOfSearchableValuesPerTag() > config.getMaxSizeOfArrayColumn()) {
-            throw new ModuleStartException("Size of searchableTracesTags[" + numOfSearchableTags
-                    + "] * numOfSearchableValuesPerTag[" + config.getNumOfSearchableValuesPerTag()
-                    + "] > maxSizeOfArrayColumn[" + config.getMaxSizeOfArrayColumn()
-                    + "]. Potential out of bound in the runtime.");
-        }
-        final int numOfSearchableLogsTags = configService.getSearchableLogsTags().split(Const.COMMA).length;
-        if (numOfSearchableLogsTags * config.getNumOfSearchableValuesPerTag() > config.getMaxSizeOfArrayColumn()) {
-            throw new ModuleStartException("Size of searchableLogsTags[" + numOfSearchableLogsTags
-                    + "] * numOfSearchableValuesPerTag[" + config.getNumOfSearchableValuesPerTag()
-                    + "] > maxSizeOfArrayColumn[" + config.getMaxSizeOfArrayColumn()
-                    + "]. Potential out of bound in the runtime.");
-        }
-        final int numOfSearchableAlarmTags = configService.getSearchableAlarmTags().split(Const.COMMA).length;
-        if (numOfSearchableAlarmTags * config.getNumOfSearchableValuesPerTag() > config.getMaxSizeOfArrayColumn()) {
-            throw new ModuleStartException("Size of searchableAlarmTags[" + numOfSearchableAlarmTags
-                    + "] * numOfSearchableValuesPerTag[" + config.getNumOfSearchableValuesPerTag()
-                    + "] > maxSizeOfArrayColumn[" + config.getMaxSizeOfArrayColumn()
-                    + "]. Potential out of bound in the runtime.");
-        }
-
         try {
             postgresqlClient.connect();
 
-            MySQLTableInstaller installer = new PostgreSQLTableInstaller(
-                    postgresqlClient, getManager(), config.getMaxSizeOfArrayColumn(), config.getNumOfSearchableValuesPerTag()
-            );
+            MySQLTableInstaller installer = new PostgreSQLTableInstaller(postgresqlClient, getManager());
             getManager().find(CoreModule.NAME).provider().getService(ModelCreator.class).addModelListener(installer);
         } catch (StorageException e) {
             throw new ModuleStartException(e.getMessage(), e);

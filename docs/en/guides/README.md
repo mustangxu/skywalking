@@ -5,7 +5,7 @@ There are many ways you can contribute to the SkyWalking community.
 - Download our [releases](http://skywalking.apache.org/downloads/), try to monitor your applications, and provide feedback to us.
 - Read our source codes. For details, reach out to us.
 - If you find any bugs, [submit an issue](https://github.com/apache/skywalking/issues). You can also try to fix it.
-- Find [help wanted issues](https://github.com/apache/skywalking/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22). This is a good place for you to start.
+- Find [`good first issue` issues](https://github.com/apache/skywalking/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22). This is a good place for you to start.
 - Submit an issue or start a discussion at [GitHub issue](https://github.com/apache/skywalking/issues/new).
 - See all mail list discussions at [website list review](https://lists.apache.org/list.html?dev@skywalking.apache.org).
 If you are already a SkyWalking committer, you can log in and use the mail list in the browser mode. Otherwise, subscribe following the step below.
@@ -13,11 +13,10 @@ If you are already a SkyWalking committer, you can log in and use the mail list 
 Mail to `dev-subscribe@skywalking.apache.org`, and follow the instructions in the reply to subscribe to the mail list.
 
 ## Contact Us
-All of the following channels are open to the community.
-* Submit an [issue](https://github.com/apache/skywalking/issues)
+All the following channels are open to the community.
+* Submit an [issue](https://github.com/apache/skywalking/issues) for an issue or feature proposal.
 * Mail list: **dev@skywalking.apache.org**. Mail to `dev-subscribe@skywalking.apache.org`. Follow the instructions in the reply to subscribe to the mail list.
-* [Gitter](https://gitter.im/openskywalking/Lobby)
-* QQ Group: 392443393
+* Submit a [discussion](https://github.com/apache/skywalking/issues) to ask questions.
 
 ## Become an official Apache SkyWalking Committer
 The PMC assesses the contributions of every contributor, including their code contributions. It also  promotes, votes on, and invites new committers and PMC members according to the Apache guides.
@@ -38,7 +37,7 @@ and leaves them for `maven-failsafe-plugin` to run, which is bound to the `verif
 Therefore, to run the UTs, try `./mvnw clean test`, which only runs the UTs but not the ITs.
 
 If you would like to run the ITs, please set the property `skipITs` to false
-as well as the the profiles of the modules whose ITs you want to run.
+as well as the profiles of the modules whose ITs you want to run.
 E.g. if you would like to run the ITs in `oap-server`, try `./mvnw -Pbackend clean verify -DskipITs=false`,
 and if you would like to run all the ITs, simply run `./mvnw clean verify -DskipITs=false`.
 
@@ -66,7 +65,7 @@ Since version 6.3.0, we have introduced more automatic tests to perform software
 
 The E2E test involves some/all of the OAP server, storage, coordinator, webapp, and the instrumented services, all of which are orchestrated by `docker-compose` or `KinD`.
 Since version 8.9.0, we immigrate to e2e-v2 which leverage [skywalking-infra-e2e](https://github.com/apache/skywalking-infra-e2e) and [skywalking-cli](https://github.com/apache/skywalking-cli) to do the whole e2e process.
-`skywalking-infra-e2e` is used to control the e2e process and `skywalking-cli` is used to interact with the OAP such as request and get response metris from OAP.
+`skywalking-infra-e2e` is used to control the e2e process and `skywalking-cli` is used to interact with the OAP such as request and get response metrics from OAP.
 
 #### Writing E2E Cases
 
@@ -84,10 +83,10 @@ To make the orchestration process easier, we're using a [docker-compose](https:/
 Follow these steps:
 1. Decide what (and how many) containers will be needed. For example, for cluster testing, you'll need > 2 OAP nodes, coordinators (e.g. zookeeper), storage (e.g. ElasticSearch), and instrumented services;
 1. Define the containers in `docker-compose.yml`, and carefully specify the dependencies, starting orders, and most importantly, link them together, e.g. set the correct OAP address on the agent end, and set the correct coordinator address in OAP, etc.
-1. Define the e2e case [config](https://skywalking.apache.org/docs/skywalking-infra-e2e/latest/en/setup/configuration-file/) in `e2e.yaml`.
+1. Define the e2e case [config](https://skywalking.apache.org/docs/skywalking-infra-e2e/next/en/setup/configuration-file/) in `e2e.yaml`.
 1. Write the expected data(yml) for verify.
 
-- [Run e2e test](https://skywalking.apache.org/docs/skywalking-infra-e2e/latest/en/setup/run-e2e-tests/)
+- [Run e2e test](https://skywalking.apache.org/docs/skywalking-infra-e2e/next/en/setup/run-e2e-tests/)
 
 All e2e cases should under `skywalking/test/e2e-v2/cases`. You could execute e2e run command in `skywalking/` e.g.
 ```
@@ -114,27 +113,20 @@ storage implementor in addition to the official one.
 - [Source and scope extension for new metrics](source-extension.md). For analysis of a new metric which SkyWalking
 hasn't yet provided, add a new receiver.
 You would most likely have to add a new source and scope. To learn how to do this, read the document.
-
-### UI developer
-Our UI consists of static pages and the web container.
-
-- [RocketBot UI](https://github.com/apache/skywalking-rocketbot-ui) is SkyWalking's primary UI since the 6.1 release.
-It is built with vue + typescript. Learn more at the rocketbot repository.
-- **Web container** source codes are in the `apm-webapp` module. This is a simple zuul proxy which hosts
-static resources and sends GraphQL query requests to the backend.
-- [Legacy UI repository](https://github.com/apache/skywalking-ui) is retained, but not included
-in SkyWalking releases since 6.0.0-GA.
+- If you would like to add a new root menu or sub-menu to booster UI, read the [UI menu control document](How-to-add-menu.md).
 
 ### OAP backend dependency management
 > This section is only applicable to dependencies of the backend module.
 
 As one of the Top Level Projects of The Apache Software Foundation (ASF), SkyWalking must follow the [ASF 3RD PARTY LICENSE POLICY](https://apache.org/legal/resolved.html). So if you're adding new dependencies to the project, you should make sure that the new dependencies would not break the policy, and add their LICENSE and NOTICE to the project.
 
-We have a [simple script](../../../tools/dependencies/check-LICENSE.sh) to help you make sure that you haven't missed out any new dependencies:
-- Build a distribution package and unzip/untar it to folder `dist`.
-- Run the script in the root directory. It will print out all new dependencies.
-- Check the LICENSE and NOTICE of those dependencies to make sure that they can be included in an ASF project. Add them to the `apm-dist/release-docs/{LICENSE,NOTICE}` file.
-- Add the names of these dependencies to the `tools/dependencies/known-oap-backend-dependencies.txt` file (**in alphabetical order**). `check-LICENSE.sh` should pass in the next run.
+We use [license-eye](https://github.com/apache/skywalking-eyes) to help you make sure that you haven't missed out any new dependencies:
+- Install `license-eye` according to [the doc](https://github.com/apache/skywalking-eyes#usage).
+- Run `license-eye dependency resolve --summary ./dist-material/release-docs/LICENSE.tpl` in the root directory of this project.
+- Check the modified lines in `./dist-material/release-docs/LICENSE` (via command `git diff -U0 ./dist-material/release-docs/LICENSE`) and
+  check whether the new dependencies' licenses are compatible with Apache 2.0.
+- Add the new dependencies' notice files (if any) to `./dist-material/release-docs/NOTICE` if they are Apache 2.0 license. Copy their license files to `./dist-material/release-docs/licenses` if they are not standard Apache 2.0 license.
+- Copy the new dependencies' license file to `./dist-material/release-docs/licenses` if they are not standard Apache 2.0 license.
 
 ## Profile
 The performance profile is an enhancement feature in the APM system. We use thread dump to estimate the method execution time, rather than adding multiple local spans. In this way, the cost would be significantly reduced compared to using distributed tracing to locate the slow method. This feature is suitable in the production environment. The following documents are key to understanding the essential parts of this feature.

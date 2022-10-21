@@ -100,6 +100,14 @@ public class DefaultScopeDefine {
     public static final int EBPF_PROFILING_TASK = 46;
     public static final int EBPF_PROFILING_SCHEDULE = 47;
     public static final int EBPF_PROFILING_DATA = 48;
+    public static final int SERVICE_LABEL = 49;
+    public static final int TAG_AUTOCOMPLETE = 50;
+    public static final int ZIPKIN_SERVICE = 51;
+    public static final int ZIPKIN_SERVICE_SPAN = 52;
+    public static final int ZIPKIN_SERVICE_RELATION = 53;
+    public static final int PROCESS_RELATION = 54;
+    public static final int CACHE_ACCESS = 55;
+    public static final int CACHE_SLOW_ACCESS = 56;
 
     /**
      * Catalog of scope, the metrics processor could use this to group all generated metrics by oal rt.
@@ -111,6 +119,7 @@ public class DefaultScopeDefine {
     public static final String SERVICE_INSTANCE_RELATION_CATALOG_NAME = "SERVICE_INSTANCE_RELATION";
     public static final String ENDPOINT_RELATION_CATALOG_NAME = "ENDPOINT_RELATION";
     public static final String PROCESS_CATALOG_NAME = "PROCESS";
+    public static final String PROCESS_RELATION_CATALOG_NAME = "PROCESS_RELATION";
 
     private static final Map<Integer, Boolean> SERVICE_CATALOG = new HashMap<>();
     private static final Map<Integer, Boolean> SERVICE_INSTANCE_CATALOG = new HashMap<>();
@@ -119,6 +128,7 @@ public class DefaultScopeDefine {
     private static final Map<Integer, Boolean> SERVICE_INSTANCE_RELATION_CATALOG = new HashMap<>();
     private static final Map<Integer, Boolean> ENDPOINT_RELATION_CATALOG = new HashMap<>();
     private static final Map<Integer, Boolean> PROCESS_CATALOG = new HashMap<>();
+    private static final Map<Integer, Boolean> PROCESS_RELATION_CATALOG = new HashMap<>();
 
     @Setter
     private static boolean ACTIVE_EXTRA_MODEL_COLUMNS = false;
@@ -222,6 +232,9 @@ public class DefaultScopeDefine {
                 break;
             case PROCESS_CATALOG_NAME:
                 PROCESS_CATALOG.put(id, Boolean.TRUE);
+                break;
+            case PROCESS_RELATION_CATALOG_NAME:
+                PROCESS_RELATION_CATALOG.put(id, Boolean.TRUE);
                 break;
         }
     }
@@ -334,6 +347,16 @@ public class DefaultScopeDefine {
     }
 
     /**
+     * Check whether the given scope ID belongs process relation catalog
+     *
+     * @param scopeId represents an existing scope id.
+     * @return true is current scope set {@link ScopeDeclaration#catalog()} == {@link #PROCESS_RELATION_CATALOG_NAME}
+     */
+    public static boolean inProcessRelationCatalog(int scopeId) {
+        return PROCESS_RELATION_CATALOG.containsKey(scopeId);
+    }
+
+    /**
      * Get the catalog string name of the given scope
      *
      * @param scope id of the source scope.
@@ -360,6 +383,9 @@ public class DefaultScopeDefine {
         }
         if (inProcessCatalog(scope)) {
             return PROCESS_CATALOG_NAME;
+        }
+        if (inProcessRelationCatalog(scope)) {
+            return PROCESS_RELATION_CATALOG_NAME;
         }
         return "ALL";
     }
