@@ -136,7 +136,28 @@ public enum Layer {
     /**
      * Apache APISIX is an open source, dynamic, scalable, and high-performance cloud native API gateway.
      */
-    APISIX(21, true);
+    APISIX(21, true),
+
+    /**
+     * EKS (Amazon Elastic Kubernetes Service) is k8s service provided by AWS Cloud
+     */
+    AWS_EKS(22, true),
+
+    /**
+     * Windows Machine
+     */
+    OS_WINDOWS(23, true),
+
+    /**
+     * Amazon Simple Storage Service (Amazon S3) is an object storage service provided by AWS Cloud
+     */
+    AWS_S3(24, true),
+
+    /*
+     * Amazon DynamoDB is a fully managed NoSQL database service that provides
+     * fast and predictable performance with seamless scalability.
+     */
+    AWS_DYNAMODB(25, true);
 
     private final int value;
     /**

@@ -29,6 +29,7 @@ import org.apache.skywalking.library.elasticsearch.requests.search.RangeQueryBui
 import org.apache.skywalking.library.elasticsearch.requests.search.Search;
 import org.apache.skywalking.library.elasticsearch.requests.search.SearchBuilder;
 import org.apache.skywalking.library.elasticsearch.requests.search.Sort;
+import org.apache.skywalking.library.elasticsearch.requests.search.SearchParams;
 import org.apache.skywalking.library.elasticsearch.response.search.SearchHit;
 import org.apache.skywalking.library.elasticsearch.response.search.SearchResponse;
 import org.apache.skywalking.oap.server.core.analysis.IDManager;
@@ -48,6 +49,7 @@ import org.apache.skywalking.oap.server.library.util.StringUtil;
 import org.apache.skywalking.oap.server.storage.plugin.elasticsearch.base.ElasticSearchConverter;
 import org.apache.skywalking.oap.server.storage.plugin.elasticsearch.base.EsDAO;
 import org.apache.skywalking.oap.server.storage.plugin.elasticsearch.base.IndexController;
+import org.apache.skywalking.oap.server.storage.plugin.elasticsearch.base.RoutingUtils;
 import org.apache.skywalking.oap.server.storage.plugin.elasticsearch.base.TimeRangeIndexNameGenerator;
 
 import static java.util.Objects.nonNull;
@@ -81,7 +83,7 @@ public class TraceQueryEsDAO extends EsDAO implements ITraceQueryDAO {
             endSecondTB = duration.getEndTimeBucketInSec();
         }
         final BoolQueryBuilder query = Query.bool();
-        if (IndexController.LogicIndicesRegister.isPhysicalTable(SegmentRecord.INDEX_NAME)) {
+        if (IndexController.LogicIndicesRegister.isMergedTable(SegmentRecord.INDEX_NAME)) {
             query.must(Query.term(IndexController.LogicIndicesRegister.RECORD_TABLE_NAME, SegmentRecord.INDEX_NAME));
         }
 
@@ -177,7 +179,10 @@ public class TraceQueryEsDAO extends EsDAO implements ITraceQueryDAO {
                   .query(Query.term(SegmentRecord.TRACE_ID, traceId))
                   .size(segmentQueryMaxSize);
 
-        final SearchResponse response = getClient().search(index, search.build());
+        SearchParams searchParams = new SearchParams();
+        RoutingUtils.addRoutingValueToSearchParam(searchParams, traceId);
+
+        final SearchResponse response = getClient().search(index, search.build(), searchParams);
 
         List<SegmentRecord> segmentRecords = new ArrayList<>();
         for (SearchHit searchHit : response.getHits().getHits()) {

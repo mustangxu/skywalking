@@ -1,106 +1,161 @@
-## 9.3.0
+## 9.4.0
 
 #### Project
 
-* Bump up the embedded `swctl` version in OAP Docker image.
+* Bump up Zipkin and Zipkin lens UI dependency to 2.24.0.
+* Bump up Apache parent pom version to 29.
+* Bump up Armeria version to 1.21.0.
+* Clean up maven `pom.xml`s.
+* Bump up Java version to 11.
+* Bump up snakeyaml to 2.0.
 
 #### OAP Server
 
-* Add component ID(133) for impala JDBC Java agent plugin and component ID(134) for impala server.
-* Use prepareStatement in H2SQLExecutor#getByIDs.(No function change).
-* Bump up snakeyaml to 1.32 for fixing CVE.
-* Fix `DurationUtils.convertToTimeBucket` missed verify date format.
-* Enhance LAL to support converting LogData to DatabaseSlowStatement.
-* [**Breaking Change**] Change the LAL script format(Add layer property).
-* Adapt ElasticSearch 8.1+, migrate from removed APIs to recommended APIs.
-* Support monitoring MySQL slow SQLs.
-* Support analyzing cache related spans to provide metrics and slow commands for cache services from client side
-* Optimize virtual database, fix dynamic config watcher NPE when default value is null
-* Remove physical index existing check and keep template existing check only to avoid meaningless `retry wait`
-  in `no-init` mode.
-* Make sure instance list ordered in TTL processor to avoid TTL timer never runs.
-* Support monitoring PostgreSQL slow SQLs.
-* [**Breaking Change**] Support sharding MySQL database instances and tables
-  by [Shardingsphere-Proxy](https://shardingsphere.apache.org/document/current/en/overview/#shardingsphere-proxy).
-  SQL-Database requires removing tables `log_tag/segment_tag/zipkin_query` before OAP starts, if bump up from previous
-  releases.
-* Fix meter functions `avgHistogram`, `avgHistogramPercentile`, `avgLabeled`, `sumHistogram` having data conflict when
-  downsampling.
-* Do sorting `readLabeledMetricsValues` result forcedly in case the storage(database) doesn't return data consistent
-  with the parameter list.
-* Fix the wrong watch semantics in Kubernetes watchers, which causes heavy traffic to API server in some Kubernetes
-  clusters,
-  we should use `Get State and Start at Most Recent` semantic instead of `Start at Exact`
-  because we don't need the changing history events,
-  see https://kubernetes.io/docs/reference/using-api/api-concepts/#semantics-for-watch.
-* Unify query services and DAOs codes time range condition to `Duration`.
-* [**Breaking Change**]: Remove prometheus-fetcher plugin, please use OpenTelemetry to scrape Prometheus metrics and
-  set up SkyWalking OpenTelemetry receiver instead.
-* BugFix: histogram metrics sent to MAL should be treated as OpenTelemetry style, not Prometheus style:
-  ```
-  (-infinity, explicit_bounds[i]] for i == 0
-  (explicit_bounds[i-1], explicit_bounds[i]] for 0 < i < size(explicit_bounds)
-  (explicit_bounds[i-1], +infinity) for i == size(explicit_bounds)
-  ```
-* Support Golang runtime metrics analysis.
-* Add APISIX metrics monitoring
-* Support skywalking-client-js report empty `service version` and `page path` , set default version as `latest` and
-  default page path as `/`(root). Fix the
-  error `fetching data (/browser_app_page_pv0) : Can't split endpoint id into 2 parts`.
-* [**Breaking Change**] Limit the max length of trace/log/alarm tag's `key=value`, set the max length of column `tags`
-  in tables`log_tag/segment_tag/alarm_record_tag` and column `query` in `zipkin_query` and column `tag_value` in `tag_autocomplete` to 256.
-  SQL-Database requires altering these columns' length or removing these tables before OAP starts, if bump up from previous releases.
-* Optimize the creation conditions of profiling task.
-* Lazy load the Kubernetes metadata and switch from event-driven to polling.
-  Previously we set up watchers to watch the Kubernetes metadata changes, this is perfect when there are deployments changes and
-  SkyWalking can react to the changes in real time. However when the cluster has many events (such as in large cluster
-  or some special Kubernetes engine like OpenShift), the requests sent from SkyWalking becomes unpredictable, i.e. SkyWalking might
-  send massive requests to Kubernetes API server, causing heavy load to the API server.
-  This PR switches from the watcher mechanism to polling mechanism, SkyWalking polls the metadata in a specified interval,
-  so that the requests sent to API server is predictable (~10 requests every `interval`, 3 minutes), and the requests count is constant
-  regardless of the cluster's changes. However with this change SkyWalking can't react to the cluster changes in time, but the delay
-  is acceptable in our case.
-* Optimize the query time of tasks in ProfileTaskCache.
-* Fix metrics was put into wrong slot of the window in the alerting kernel.
-* Support `sumPerMinLabeled` in `MAL`.
-* Bump up jackson databind, snakeyaml, grpc dependencies.
-* Support export `Trace` and `Log` through Kafka.
+* Add `ServerStatusService` in the core module to provide a new way to expose booting status to other modules.
+* Adds Micrometer as a new component.(ID=141)
+* Refactor session cache in MetricsPersistentWorker.
+* Cache enhancement - don't read new metrics from database in minute dimensionality.
+
+```
+    // When
+    // (1) the time bucket of the server's latest stability status is provided
+    //     1.1 the OAP has booted successfully
+    //     1.2 the current dimensionality is in minute.
+    //     1.3 the OAP cluster is rebalanced due to scaling
+    // (2) the metrics are from the time after the timeOfLatestStabilitySts
+    // (3) the metrics don't exist in the cache
+    // the kernel should NOT try to load it from the database.
+    //
+    // Notice, about condition (2),
+    // for the specific minute of booted successfully, the metrics are expected to load from database when
+    // it doesn't exist in the cache.
+```
+
+* Remove the offset of metric session timeout according to worker creation sequence.
+* Correct `MetricsExtension` annotations declarations in manual entities.
+* Support component IDs' priority in process relation metrics.
+* Remove abandon logic in MergableBufferedData, which caused unexpected no-update.
+* Fix miss set `LastUpdateTimestamp` that caused the metrics session to expire.
+* Rename MAL rule `spring-sleuth.yaml` to `spring-micrometer.yaml`.
+* Fix memory leak in Zipkin API.
+* Remove the dependency of `refresh_interval` of ElasticSearch indices from `elasticsearch/flushInterval` config. Now,
+  it uses `core/persistentPeriod` + 5s as `refresh_interval` for all indices instead.
+* Change `elasticsearch/flushInterval` to 5s(was 15s).
+* Optimize `flushInterval` of ElasticSearch BulkProcessor to avoid extra periodical flush in the continuous bulk streams.
+* An unexpected dot is added when exp is a pure metric name and expPrefix != null.
+* Support monitoring MariaDB.
+* Remove measure/stream specific interval settings in BanyanDB.
+* Add global-specific settings used to override global configurations (e.g `segmentIntervalDays`, `blockIntervalHours`) in BanyanDB.
+* Use TTL-driven interval settings for the `measure-default` group in BanyanDB.
+* Fix wrong group of non time-relative metadata in BanyanDB.
+* Refactor `StorageData#id` to the new StorageID object from a String type.
+* Support multiple component IDs in the service topology level.
+* Add `ElasticSearch.Keyword` annotation to declare the target field type as `keyword`.
+* [Breaking Change] Column `component_id` of `service_relation_client_side` and `service_relation_server_side` have been replaced by `component_ids`.
+* Support `priority` definition in the `component-libraries.yml`.
+* Enhance service topology query. When there are multiple components detected from the server side,
+  the component type of the node would be determined by the priority, which was random in the previous release.
+* Remove `component_id` from `service_instance_relation_client_side` and `service_instance_relation_server_side`.
+* Make the satellite E2E test more stable.
+* Add Istio 1.16 to test matrix.
+* Register ValueColumn as Tag for Record in BanyanDB storage plugin.
+* Bump up Netty to 4.1.86.
+* Remove unnecessary additional columns when storage is in logical sharding mode.
+* The cluster coordinator support watch mechanism for notifying `RemoteClientManager` and `ServerStatusService`.
+* Fix ServiceMeshServiceDispatcher overwrite ServiceDispatcher debug file when open SW_OAL_ENGINE_DEBUG.
+* Use `groupBy` and `in` operators to optimize topology query for BanyanDB storage plugin.
+* Support server status watcher for `MetricsPersistentWorker` to check the metrics whether required initialization.
+* Fix the meter value are not correct when using `sumPerMinLabeld` or `sumHistogramPercentile` MAL function.
+* Fix cannot display attached events when using Zipkin Lens UI query traces.
+* Remove `time_bucket` for both Stream and Measure kinds in BanyanDB plugin.
+* Merge `TIME_BUCKET` of `Metrics` and `Record` into `StorageData`.
+* Support no `layer` in the `listServices` query.
+* Fix `time_bucket` of `ServiceTraffic` not set correctly in `slowSql` of MAL.
+* Correct the TopN record query DAO of BanyanDB.
+* Tweak interval settings of BanyanDB.
+* Support monitoring AWS Cloud EKS.
+* Bump BanyanDB Java client to 0.3.0-rc1.
+* Remove `id` tag from measures.
+* Add `Banyandb.MeasureField` to mark a column as a BanyanDB Measure field.
+* Add `BanyanDB.StoreIDTag` to store a process's id for searching.
+* [**Breaking Change**] The supported version of ShardingSphere-Proxy is upgraded from 5.1.2 to 5.3.1. Due to the changes of ShardingSphere's API, versions before 5.3.1 are not compatible.
+* Add the eBPF network profiling E2E Test in the per storage.
+* Fix TCP service instances are lack of instance properties like `pod` and `namespace`, which causes Pod log not to work for TCP workloads.
+* Add Python HBase happybase module component ID(94).
+* Fix gRPC alarm cannot update settings from dynamic configuration source.
+* Add `batchOfBytes` configuration to limit the size of bulk flush.
+* Add Python Websocket module component ID(7018).
+* [Optional] Optimize single trace query performance by customizing routing in ElasticSearch. SkyWalking trace segments and Zipkin spans are using trace ID for routing. This is OFF by default, controlled by `storage/elasticsearch/enableCustomRouting`.
+* Enhance OAP HTTP server to support HTTPS
+* Remove handler scan in otel receiver, manual initialization instead
+* Add aws-firehose-receiver to support collecting AWS CloudWatch metric(OpenTelemetry format). Notice, no HTTPS/TLS setup
+  support. By following AWS Firehose request, it uses [proxy request](https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers)
+  (`https://...` instead of `/aws/firehose/metrics`), there must be a proxy(Nginx, Envoy, etc.).
+* Avoid Antlr dependencies' versions might be different in compile time and runtime.
+* Now `PrometheusMetricConverter#escapedName` also support converting `/` to `_`.
+* Add missing TCP throughput metrics.
+* Refactor `@Column` annotation, swap `Column#name` and `ElasticSearch.Column#columnAlias` and rename `ElasticSearch.Column#columnAlias` to `ElasticSearch.Column#legacyName`.
+* Add Python HTTPX module component ID(7019).
+* Migrate tests from junit 4 to junit 5.
+* Refactor http-based alarm plugins and extract common logic to `HttpAlarmCallback`.
+* Support Amazon Simple Storage Service (Amazon S3) metrics monitoring
+* Support process Sum metrics with AGGREGATION_TEMPORALITY_DELTA case
+* Support Amazon DynamoDB monitoring.
+* Support prometheus HTTP API and promQL.
+* `Scope` in the Entity of Metrics query v1 protocol is not required and automatical correction. The scope is determined based on the metric itself.
+* Add explicit `ReadTimeout` for ConsulConfigurationWatcher to avoid `IllegalArgumentException: Cache watchInterval=10sec >= networkClientReadTimeout=10000ms`.
+* Fix `DurationUtils.getDurationPoints` exceed, when `startTimeBucket` equals `endTimeBucket`.
+* Support process OpenTelemetry ExponentialHistogram metrics
+* Add FreeRedis component ID(3018).
 
 #### UI
 
-* Fix: tab active incorrectly, when click tab space
-* Add impala icon for impala JDBC Java agent plugin.
-* (Webapp)Bump up snakeyaml to 1.31 for fixing CVE-2022-25857
-* [Breaking Change]: migrate from Spring Web to Armeria, now you should use the environment variable
-  name `SW_OAP_ADDRESS`
-  to change the OAP backend service addresses, like `SW_OAP_ADDRESS=localhost:12800,localhost:12801`, and use
-  environment
-  variable `SW_SERVER_PORT` to change the port. Other Spring-related configurations don't take effect anymore.
-* Polish the endpoint list graph.
-* Fix styles for an adaptive height.
-* Fix setting up a new time range after clicking the refresh button.
-* Enhance the process topology graph to support dragging nodes.
-* UI-template: Fix metrics calculation in `general-service/mesh-service/faas-function` top-list dashboard.
-* Update MySQL dashboard to visualize collected slow SQLs.
-* Add virtual cache dashboard
-* Remove `responseCode` fields of all OAL sources, as well as examples to avoid user's confusion.
-* Remove All from the endpoints selector.
-* Enhance menu configurations to make it easier to change.
-* Update PostgreSQL dashboard to visualize collected slow SQLs.
-* Add Golang runtime metrics and cpu/memory used rate panels in General-Instance dashboard
-* Add gateway apisix menu
-* Query logs with the specific service ID
-* Bump d3-color from 3.0.1 to 3.1.0
+* Add Zipkin Lens UI to webapp, and proxy it to context path `/zipkin`.
+* Migrate the build tool from vue cli to Vite4.
+* Fix Instance Relation and Endpoint Relation dashboards show up.
+* Add Micrometer icon.
+* Update MySQL UI to support MariaDB.
+* Add AWS menu for supporting AWS monitoring.
+* Add missing FastAPI logo.
+* Update the log details page to support the formatted display of JSON content.
+* Fix build config.
+* Avoid being unable to drag process nodes for the first time.
+* Add node folder into ignore list.
+* Add ElPopconfirm to component types.
+* Add an iframe widget for zipkin UI.
+* Optimize graph tooltips to make them more friendly.
+* Bump json5 from 1.0.1 to 1.0.2.
+* Add websockets icon.
+* Implement independent mode for widgets.
+* Bump http-cache-semantics from 4.1.0 to 4.1.1.
+* Update menus for OpenFunction.
+* Add auto fresh to widgets independent mode.
+* Fix: clear trace ID on the Log and Trace widgets after using association.
+* Fix: reset duration for query conditions after time range changes.
+* Add AWS S3 menu.
+* Refactor: optimize side bar component to make it more friendly.
+* Fix: remove duplicate popup message for query result.
+* Add logo for HTTPX.
+* Refactor: optimize the attached events visualization in the trace widget.
+* Update BanyanDB client to 0.3.1.
+* Add AWS DynamoDB menu.
+* Fix: add auto period to the independent mode for widgets.
+* Optimize menus and add Windows monitoring menu.
+* Add a calculation for the cpm5dAvg.
+* add a cpm5d calculation.
+* Fix data processing error in the eBPF profiling widget.
+* Support for double quotes in SlowSQL statements.
+* Fix: the wrong position of the menu when clicking the topology node.
 
 #### Documentation
 
-* Add `metadata-uid` setup doc about Kubernetes coordinator in the cluster management.
-* Add a doc for adding menus to booster UI.
-* Move general good read blogs from `Agent Introduction` to `Academy`.
-* Add re-post for blog `Scaling with Apache SkyWalking` in the academy list.
-* Add re-post for blog `Diagnose Service Mesh Network Performance with eBPF` in the academy list.
-* Add **Security Notice** doc.
-* Add new docs for `Report Span Attached Events` data collecting protocol.
-* Add new docs for `Record` query protocol
+* Remove Spring Sleuth docs, and add `Spring MicroMeter Observations Analysis` with the latest Java agent side
+  enhancement.
+* Update `monitoring MySQL document` to add the `MariaDB` part.
+* Reorganize the protocols docs to a more clear API docs.
+* Add documentation about replacing Zipkin server with SkyWalking OAP.
+* Add Lens UI relative docs in Zipkin trace section.
+* Add Profiling APIs.
+* Fix backend telemetry doc and so11y dashboard doc as the OAP Prometheus fetcher was removed since 9.3.0
 
-All issues and pull requests are [here](https://github.com/apache/skywalking/milestone/149?closed=1)
+All issues and pull requests are [here](https://github.com/apache/skywalking/milestone/160?closed=1)
